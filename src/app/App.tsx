@@ -1873,6 +1873,7 @@ function Sidebar({
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
+let backupWriteQueue: Promise<void> = Promise.resolve();
 
 export default function App() {
   const { mode, setMode, isDark } = useTheme();
@@ -1896,7 +1897,7 @@ export default function App() {
   const snoozeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hydratedRef = useRef(false);
-  const exportQueuedRef = useRef(false);
+  // const exportQueuedRef = useRef(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const backupRootHandleRef = useRef<any>(null);
   // Always-fresh ref so callbacks closed in timeouts can read latest state
@@ -1917,96 +1918,101 @@ export default function App() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Export updated HYDRAA.xls only after committed user actions.
-  useEffect(() => {
-    if (!loaded || !hydratedRef.current || !exportQueuedRef.current) return;
-    exportQueuedRef.current = false;
-    void saveWorkbookToBackup(stateToXlsXml(appState, mode));
-  }, [appState, mode, loaded]);
+  // useEffect(() => {
+  //   if (!loaded || !hydratedRef.current || !exportQueuedRef.current) return;
+  //   exportQueuedRef.current = false;
+  //   void saveWorkbookToBackup(stateToXlsXml(appState, mode));
+  // }, [appState, mode, loaded]);
 
-  function queueExport() {
-    exportQueuedRef.current = true;
-  }
+  // function queueExport() {
+  //   exportQueuedRef.current = true;
+  // }
 
   let _backupWriteQueue: Promise<void> = Promise.resolve();
 
   async function saveWorkbookToBackup(xml: string): Promise<void> {
-    // Add this save operation to the queue.
-    // This guarantees that only ONE Excel write happens at a time.
-    _backupWriteQueue = _backupWriteQueue
+    const anyWindow = window as any;
+
+    // Fallback for browsers that don't support File System Access API
+    if (!anyWindow.showDirectoryPicker) {
+      downloadXls(xml, "HYDRAA.xls");
+      return;
+    }
+
+    // Queue writes so only one export happens at a time
+    backupWriteQueue = backupWriteQueue
       .catch(() => {
-        // Keep the queue alive even if a previous write failed.
+        // Keep queue usable after a previous failure
       })
       .then(async () => {
-        try {
-          const anyWindow = window as any;
+        let root = backupRootHandleRef.current;
 
-          if (!anyWindow.showDirectoryPicker) {
-            console.warn("File System Access API is not supported.");
-            return;
-          }
-
-          let root = backupRootHandleRef.current;
-
-          // Ask for the folder only once
-          if (!root) {
-            try {
-              root = await anyWindow.showDirectoryPicker({
-                mode: "readwrite",
-              });
-
-              backupRootHandleRef.current = root;
-            } catch (error: any) {
-              if (error?.name === "AbortError") {
-                console.log("Backup folder selection was cancelled.");
-                return;
-              }
-
-              throw error;
-            }
-          }
-
-          // Get backup folder
-          const backupDir = await root.getDirectoryHandle("backup", {
-            create: true,
-          });
-
-          // Get/create Excel file
-          const fileHandle = await backupDir.getFileHandle("HYDRAA.xls", {
-            create: true,
-          });
-
-          // Check permission
-          let permission = await fileHandle.queryPermission({
+        // Ask for folder if we don't have one
+        if (!root) {
+          root = await anyWindow.showDirectoryPicker({
             mode: "readwrite",
           });
 
-          if (permission !== "granted") {
-            permission = await fileHandle.requestPermission({
-              mode: "readwrite",
-            });
-          }
-
-          if (permission !== "granted") {
-            throw new Error("Write permission was not granted.");
-          }
-
-          // Create a new writable stream.
-          // This operation is now serialized by the queue.
-          const writable = await fileHandle.createWritable();
-
-          try {
-            await writable.write(xml);
-          } finally {
-            await writable.close();
-          }
-
-          console.log("HYDRAA.xls successfully updated in backup folder.");
-        } catch (error: any) {
-          console.error("Failed to update backup Excel file:", error);
+          backupRootHandleRef.current = root;
         }
+
+        // Verify root permission
+        let rootPermission = await root.queryPermission({
+          mode: "readwrite",
+        });
+
+        if (rootPermission !== "granted") {
+          rootPermission = await root.requestPermission({
+            mode: "readwrite",
+          });
+        }
+
+        if (rootPermission !== "granted") {
+          throw new Error(
+            "Permission to write to the selected folder was not granted.",
+          );
+        }
+
+        // Open/create backup folder
+        const backupDir = await root.getDirectoryHandle("backup", {
+          create: true,
+        });
+
+        // Open/create HYDRAA.xls
+        const fileHandle = await backupDir.getFileHandle("HYDRAA.xls", {
+          create: true,
+        });
+
+        // Verify file permission
+        let filePermission = await fileHandle.queryPermission({
+          mode: "readwrite",
+        });
+
+        if (filePermission !== "granted") {
+          filePermission = await fileHandle.requestPermission({
+            mode: "readwrite",
+          });
+        }
+
+        if (filePermission !== "granted") {
+          throw new Error("Permission to write HYDRAA.xls was not granted.");
+        }
+
+        // Create writable stream
+        const writable = await fileHandle.createWritable({
+          keepExistingData: false,
+        });
+
+        try {
+          await writable.write(xml);
+        } finally {
+          await writable.close();
+        }
+
+        console.log("HYDRAA.xls successfully exported to backup folder.");
       });
 
-    return _backupWriteQueue;
+    return backupWriteQueue;
   }
 
   async function handleImportFile(file: File) {
@@ -2017,7 +2023,7 @@ export default function App() {
         window.alert("That file could not be read as a HYDRAA.xls export.");
         return;
       }
-      exportQueuedRef.current = false;
+      // exportQueuedRef.current = false;
       hydratedRef.current = true;
       setMode(parsed.theme);
       setAppState(parsed.state);
@@ -2091,7 +2097,7 @@ export default function App() {
       return;
     }
 
-    queueExport();
+    // queueExport();
   }, [appState]);
 
   const scheduleReminder = useCallback(
@@ -2154,7 +2160,7 @@ export default function App() {
       ...s,
       records: [...s.records, record].sort((a, b) => b.timestamp - a.timestamp),
     }));
-    queueExport();
+    // queueExport();
   }
 
   function clearSnoozeTimer() {
@@ -2240,7 +2246,7 @@ export default function App() {
         .map((r) => (r.id === editingRecord.id ? updated : r))
         .sort((a, b) => b.timestamp - a.timestamp),
     }));
-    queueExport();
+    // queueExport();
     setEditingRecord(null);
   }
 
@@ -2249,7 +2255,7 @@ export default function App() {
       ...s,
       records: s.records.filter((r) => r.id !== id),
     }));
-    queueExport();
+    // queueExport();
     setDeletingId(null);
   }
 
@@ -2316,10 +2322,18 @@ export default function App() {
     clearSnoozeTimer();
     setShowReminder(false);
     scheduleReminder(appState.reminderInterval * 60000);
-    queueExport();
+    // queueExport();
   }
 
   async function handleDownload() {
+    const confirmed = window.confirm(
+      "Do you want to export the current HYDRAA data and overwrite the existing HYDRAA.xls file?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     try {
       const xml = stateToXlsXml(appStateRef.current, mode);
 
@@ -2330,8 +2344,22 @@ export default function App() {
       setTimeout(() => {
         setDlFlash(false);
       }, 2000);
-    } catch (error) {
-      console.error("Export failed:", error);
+
+      console.log("HYDRAA export completed successfully.");
+    } catch (error: any) {
+      console.error("HYDRAA export failed:", error);
+
+      if (error?.name === "AbortError") {
+        window.alert(
+          "Export cancelled. Please select the HYDRAA application folder to continue.",
+        );
+      } else {
+        window.alert(
+          `Unable to export HYDRAA.xls.\n\n${
+            error?.message || "Unknown error occurred."
+          }`,
+        );
+      }
     }
   }
 
@@ -2481,7 +2509,7 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-6">
           {/* ─── DASHBOARD ─── */}
           {activeTab === "dashboard" && (
-            <div className="max-w-4xl space-y-5">
+            <div className="space-y-5">
               {/* progress */}
               <div className="bg-card border border-border rounded-xl p-5">
                 <div className="flex flex-col md:flex-row md:items-end gap-5">
@@ -2808,7 +2836,7 @@ export default function App() {
 
           {/* ─── TRENDS ─── */}
           {activeTab === "trends" && (
-            <div className="max-w-4xl space-y-5">
+            <div className="space-y-5">
               <div>
                 <h2 className="font-semibold text-foreground text-sm">
                   Trends
@@ -2966,7 +2994,7 @@ export default function App() {
                       { date: today, goal: p.dailyGoal },
                     ];
                   }
-                  queueExport();
+                  // queueExport();
                   return next;
                 })
               }
