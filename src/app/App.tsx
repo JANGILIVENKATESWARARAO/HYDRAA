@@ -41,7 +41,7 @@ import {
   Trash2,
   ChevronDown,
 } from "lucide-react";
-import defaultHydraXls from "../assets/HYDRAA.xls?raw";
+import defaultHydraXls from "../../backup/HYDRAA.xls?raw";
 
 // ─── Sound System ────────────────────────────────────────────────────────────
 
@@ -2664,7 +2664,7 @@ export default function App() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="font-semibold text-foreground text-sm">
+                  <h2 className="font-semibold text-foreground text-md">
                     Drink History
                   </h2>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -2726,7 +2726,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => toggleHistoryDate(date)}
-                              className="w-full px-4 py-3 bg-muted/40 border-b border-border flex items-center justify-between gap-4 text-left hover:bg-muted/60 transition-colors"
+                              className="w-full px-4 py-3 bg-muted-foreground/40 border-b border-border flex items-center justify-between gap-4 text-left hover:bg-muted-foreground/50 transition-colors"
                             >
                               <div className="flex items-center gap-3 min-w-0">
                                 {isExpanded ? (
@@ -2745,23 +2745,23 @@ export default function App() {
                                       day: "numeric",
                                     })}
 
-                                  {date === today && (
-                                    <span className="text-[11px] text-primary font-medium ml-1">
-                                      Today
-                                    </span>
-                                  )}
+                                    {date === today && (
+                                      <span className="text-[11px] text-primary font-medium ml-1">
+                                        Today
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
+                              <div className="flex items-center gap-3 text-xs text-secondary-foreground shrink-0">
                                 <Num>💧 {dayWater} ml</Num>
 
                                 {dayTotal !== dayWater && (
                                   <Num>Total {dayTotal} ml</Num>
                                 )}
 
-                                <span className="text-muted-foreground">
+                                <span>
                                   {
                                     recs.filter((r) => r.type === "drink")
                                       .length
@@ -2784,7 +2784,7 @@ export default function App() {
                                             isDark={isDark}
                                           />
                                           <div className="flex-1 flex items-center gap-2 min-w-0">
-                                            <span className="text-sm font-medium text-foreground">
+                                            <span className="text-sm font-medium text-secondary-foreground">
                                               {d.label}
                                             </span>
                                             {r.source === "manual" && (
@@ -2818,7 +2818,9 @@ export default function App() {
                                               <Pencil className="w-3.5 h-3.5" />
                                             </button>
                                             <button
-                                              onClick={() => setDeletingId(r.id)}
+                                              onClick={() =>
+                                                setDeletingId(r.id)
+                                              }
                                               title="Delete record"
                                               className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
                                             >
@@ -2861,7 +2863,7 @@ export default function App() {
                                   return (
                                     <div
                                       key={r.id}
-                                      className="flex items-center gap-3 px-4 py-2.5 opacity-45"
+                                      className="flex items-center gap-3 px-4 py-2.5 opacity-80"
                                     >
                                       <span className="w-2.5 h-2.5 rounded-full bg-border shrink-0" />
                                       <span className="text-sm text-muted-foreground flex-1">
@@ -2889,7 +2891,7 @@ export default function App() {
           {activeTab === "trends" && (
             <div className="space-y-5">
               <div>
-                <h2 className="font-semibold text-foreground text-sm">
+                <h2 className="font-semibold text-foreground text-md">
                   Trends
                 </h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
