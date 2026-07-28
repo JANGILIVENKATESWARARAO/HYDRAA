@@ -40,6 +40,7 @@ import {
   Pencil,
   Trash2,
   ChevronDown,
+  Martini,
 } from "lucide-react";
 import defaultHydraXls from "../../backup/HYDRAA.xls?raw";
 
@@ -1749,14 +1750,11 @@ function Sidebar({
       }}
     >
       {/* Logo + collapse toggle */}
-      <div
-        className="flex items-center justify-between px-3 py-4 border-b border-border"
-        style={{ minHeight: 56 }}
-      >
+      <div className="flex items-center justify-between h-14 px-3 py-4 border-b border-border">
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <span className="text-xl shrink-0">💧</span>
+          <Martini className="w-5 h-5" />
           {!collapsed && (
-            <span className="font-bold text-sm tracking-[0.15em] text-foreground whitespace-nowrap overflow-hidden">
+            <span className="font-bold text-md tracking-[0.15em] text-foreground whitespace-nowrap overflow-hidden">
               HYDRAA
             </span>
           )}
@@ -1845,9 +1843,6 @@ function Sidebar({
           </div>
         ) : (
           <div>
-            <p className="text-xs text-muted-foreground px-2 mb-1.5 uppercase tracking-wider font-medium">
-              Theme
-            </p>
             <div className="grid grid-cols-2 gap-1">
               {THEME_OPTS.map(({ key, label, Icon }) => (
                 <button
