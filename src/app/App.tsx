@@ -30,6 +30,7 @@ import {
   Moon,
   Bell,
   Download,
+  Upload,
   Plus,
   X,
   SkipForward,
@@ -2496,7 +2497,7 @@ export default function App() {
               onClick={openImportPicker}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted transition-colors"
             >
-              <Download className="w-3.5 h-3.5 rotate-180" />
+              <Upload className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Import</span>
             </button>
             <button
