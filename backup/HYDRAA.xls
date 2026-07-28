@@ -1,0 +1,35 @@
+<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Styles>
+  <Style ss:ID="h"><Font ss:Bold="1" ss:Color="#FFF"/><Interior ss:Color="#0284C7" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="s"><Font ss:Bold="1"/><Interior ss:Color="#E8F4FD" ss:Pattern="Solid"/></Style>
+</Styles>
+<Worksheet ss:Name="HYDRAA Log"><Table>
+<Row><Cell ss:StyleID="h"><Data ss:Type="String">Date</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">Time</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">Drink Type</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">Amount (ml)</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">Type</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">Source</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">Snooze (min)</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">Water Total (ml)</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">Daily Goal (ml)</Data></Cell></Row>
+
+</Table></Worksheet>
+<Worksheet ss:Name="Summary"><Table>
+<Row><Cell ss:StyleID="h"><Data ss:Type="String">Metric</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">Value</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Water (ml)</Data></Cell><Cell><Data ss:Type="Number">0</Data></Cell></Row><Row><Cell><Data ss:Type="String">Coffee (ml)</Data></Cell><Cell><Data ss:Type="Number">0</Data></Cell></Row><Row><Cell><Data ss:Type="String">Tea (ml)</Data></Cell><Cell><Data ss:Type="Number">0</Data></Cell></Row><Row><Cell><Data ss:Type="String">Soda (ml)</Data></Cell><Cell><Data ss:Type="Number">0</Data></Cell></Row><Row><Cell><Data ss:Type="String">Juice (ml)</Data></Cell><Cell><Data ss:Type="Number">0</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Total Drink Entries</Data></Cell><Cell><Data ss:Type="Number">0</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Snoozed</Data></Cell><Cell><Data ss:Type="Number">0</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Skipped</Data></Cell><Cell><Data ss:Type="Number">0</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Default Daily Goal (ml)</Data></Cell><Cell><Data ss:Type="Number">2000</Data></Cell></Row>
+</Table></Worksheet>
+<Worksheet ss:Name="HYDRAA Config"><Table>
+<Row><Cell ss:StyleID="h"><Data ss:Type="String">Setting</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">Value</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Daily Goal</Data></Cell><Cell><Data ss:Type="String">2000</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Reminder Interval</Data></Cell><Cell><Data ss:Type="String">45</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Snooze Durations</Data></Cell><Cell><Data ss:Type="String">5,10,15,30</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Reminder Enabled</Data></Cell><Cell><Data ss:Type="String">true</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Sound Choice</Data></Cell><Cell><Data ss:Type="String">fahh</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Sound Volume</Data></Cell><Cell><Data ss:Type="String">0.85</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Sound Enabled</Data></Cell><Cell><Data ss:Type="String">true</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Theme</Data></Cell><Cell><Data ss:Type="String">dark</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Exported At</Data></Cell><Cell><Data ss:Type="String">7/28/2026, 11:32:33 AM</Data></Cell></Row>
+</Table></Worksheet>
+<Worksheet ss:Name="Daily Goals"><Table>
+<Row><Cell ss:StyleID="h"><Data ss:Type="String">Date</Data></Cell><Cell ss:StyleID="h"><Data ss:Type="String">Goal (ml)</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">2026-07-28</Data></Cell><Cell><Data ss:Type="Number">2200</Data></Cell></Row>
+</Table></Worksheet>
+</Workbook>
