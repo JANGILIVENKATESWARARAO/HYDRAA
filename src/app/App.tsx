@@ -39,6 +39,7 @@ import {
   VolumeX,
   Pencil,
   Trash2,
+  ChevronDown,
 } from "lucide-react";
 import defaultHydraXls from "../assets/HYDRAA.xls?raw";
 
@@ -1900,6 +1901,9 @@ export default function App() {
   // const exportQueuedRef = useRef(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const backupRootHandleRef = useRef<any>(null);
+  const [expandedHistoryDates, setExpandedHistoryDates] = useState<Set<string>>(
+    new Set([todayStr()]),
+  );
   // Always-fresh ref so callbacks closed in timeouts can read latest state
   const appStateRef = useRef(appState);
   useEffect(() => {
@@ -2363,6 +2367,20 @@ export default function App() {
     }
   }
 
+  function toggleHistoryDate(date: string) {
+    setExpandedHistoryDates((prev) => {
+      const next = new Set(prev);
+
+      if (next.has(date)) {
+        next.delete(date);
+      } else {
+        next.add(date);
+      }
+
+      return next;
+    });
+  }
+
   // ── derived ───────────────────────────────────────────────────────────────
 
   const today = todayStr();
@@ -2643,7 +2661,7 @@ export default function App() {
 
           {/* ─── HISTORY ─── */}
           {activeTab === "history" && (
-            <div className="max-w-3xl space-y-4">
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="font-semibold text-foreground text-sm">
@@ -2699,131 +2717,164 @@ export default function App() {
                         const dayTotal = recs
                           .filter((r) => r.type === "drink")
                           .reduce((s, r) => s + r.amount, 0);
+                        const isExpanded = expandedHistoryDates.has(date);
                         return (
                           <div
                             key={date}
                             className="bg-card border border-border rounded-xl overflow-hidden"
                           >
-                            <div className="px-4 py-3 bg-muted/40 border-b border-border flex items-center justify-between">
-                              <p className="text-sm font-semibold text-foreground">
-                                {new Date(
-                                  date + "T12:00:00",
-                                ).toLocaleDateString("en-US", {
-                                  weekday: "long",
-                                  month: "short",
-                                  day: "numeric",
-                                })}
-                              </p>
-                              <div className="flex gap-3 text-xs text-muted-foreground">
+                            <button
+                              type="button"
+                              onClick={() => toggleHistoryDate(date)}
+                              className="w-full px-4 py-3 bg-muted/40 border-b border-border flex items-center justify-between gap-4 text-left hover:bg-muted/60 transition-colors"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                {isExpanded ? (
+                                  <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4 shrink-0 text-muted-foreground" />
+                                )}
+
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-foreground">
+                                    {new Date(
+                                      date + "T12:00:00",
+                                    ).toLocaleDateString("en-US", {
+                                      weekday: "long",
+                                      month: "short",
+                                      day: "numeric",
+                                    })}
+
+                                  {date === today && (
+                                    <span className="text-[11px] text-primary font-medium ml-1">
+                                      Today
+                                    </span>
+                                  )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
                                 <Num>💧 {dayWater} ml</Num>
+
                                 {dayTotal !== dayWater && (
                                   <Num>Total {dayTotal} ml</Num>
                                 )}
+
+                                <span className="text-muted-foreground">
+                                  {
+                                    recs.filter((r) => r.type === "drink")
+                                      .length
+                                  }{" "}
+                                  drinks
+                                </span>
                               </div>
-                            </div>
-                            <div className="divide-y divide-border">
-                              {recs.map((r) => {
-                                if (r.type === "drink") {
-                                  const d = DRINKS[r.drinkType];
-                                  const isDeleting = deletingId === r.id;
-                                  return (
-                                    <div key={r.id}>
-                                      <div className="flex items-center gap-3 px-4 py-3 group">
-                                        <DrinkDot
-                                          type={r.drinkType}
-                                          isDark={isDark}
-                                        />
-                                        <div className="flex-1 flex items-center gap-2 min-w-0">
-                                          <span className="text-sm font-medium text-foreground">
-                                            {d.label}
-                                          </span>
-                                          {r.source === "manual" && (
-                                            <span className="text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5 shrink-0">
-                                              manual
+                            </button>
+                            {isExpanded && (
+                              <div className="divide-y divide-border">
+                                {recs.map((r) => {
+                                  if (r.type === "drink") {
+                                    const d = DRINKS[r.drinkType];
+                                    const isDeleting = deletingId === r.id;
+                                    return (
+                                      <div key={r.id}>
+                                        <div className="flex items-center gap-3 px-4 py-3 group">
+                                          <DrinkDot
+                                            type={r.drinkType}
+                                            isDark={isDark}
+                                          />
+                                          <div className="flex-1 flex items-center gap-2 min-w-0">
+                                            <span className="text-sm font-medium text-foreground">
+                                              {d.label}
                                             </span>
-                                          )}
-                                        </div>
-                                        <Num
-                                          className="text-sm font-semibold shrink-0"
-                                          style={{
-                                            color: isDark
-                                              ? d.colorDark
-                                              : d.colorLight,
-                                          }}
-                                        >
-                                          +{r.amount} ml
-                                        </Num>
-                                        <Num className="text-xs text-muted-foreground w-10 text-right shrink-0">
-                                          {r.time.slice(0, 5)}
-                                        </Num>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                          <button
-                                            onClick={() => {
-                                              setEditingRecord(r);
-                                              setShowRecord(true);
+                                            {r.source === "manual" && (
+                                              <span className="text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5 shrink-0">
+                                                manual
+                                              </span>
+                                            )}
+                                          </div>
+                                          <Num
+                                            className="text-sm font-semibold shrink-0"
+                                            style={{
+                                              color: isDark
+                                                ? d.colorDark
+                                                : d.colorLight,
                                             }}
-                                            title="Edit record"
-                                            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                                           >
-                                            <Pencil className="w-3.5 h-3.5" />
-                                          </button>
-                                          <button
-                                            onClick={() => setDeletingId(r.id)}
-                                            title="Delete record"
-                                            className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-                                          >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                          </button>
-                                        </div>
-                                      </div>
-                                      {isDeleting && (
-                                        <div className="mx-4 mb-3 px-3 py-2.5 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center justify-between gap-3">
-                                          <p className="text-xs text-foreground">
-                                            Delete this record permanently?
-                                          </p>
-                                          <div className="flex items-center gap-2 shrink-0">
+                                            +{r.amount} ml
+                                          </Num>
+                                          <Num className="text-xs text-muted-foreground w-10 text-right shrink-0">
+                                            {r.time.slice(0, 5)}
+                                          </Num>
+                                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                             <button
-                                              onClick={() =>
-                                                handleDeleteRecord(r.id)
-                                              }
-                                              className="px-3 py-1 rounded-md bg-destructive text-destructive-foreground text-xs font-semibold hover:opacity-90 transition-opacity"
+                                              onClick={() => {
+                                                setEditingRecord(r);
+                                                setShowRecord(true);
+                                              }}
+                                              title="Edit record"
+                                              className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                                             >
-                                              Delete
+                                              <Pencil className="w-3.5 h-3.5" />
                                             </button>
                                             <button
-                                              onClick={() =>
-                                                setDeletingId(null)
-                                              }
-                                              className="px-3 py-1 rounded-md border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                                              onClick={() => setDeletingId(r.id)}
+                                              title="Delete record"
+                                              className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
                                             >
-                                              Cancel
+                                              <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                           </div>
                                         </div>
-                                      )}
+                                        {isDeleting && (
+                                          <div className="mx-4 mb-3 px-3 py-2.5 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center justify-between gap-3">
+                                            <p className="text-xs text-foreground">
+                                              Delete this record permanently?
+                                            </p>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                              <button
+                                                onClick={() =>
+                                                  handleDeleteRecord(r.id)
+                                                }
+                                                className="px-3 py-1 rounded-md bg-destructive text-destructive-foreground text-xs font-semibold hover:opacity-90 transition-opacity"
+                                              >
+                                                Delete
+                                              </button>
+                                              <button
+                                                onClick={() =>
+                                                  setDeletingId(null)
+                                                }
+                                                className="px-3 py-1 rounded-md border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  const label =
+                                    r.type === "snooze"
+                                      ? `Snoozed${r.snoozeDuration ? ` ${r.snoozeDuration}m` : ""}`
+                                      : "Skipped";
+                                  return (
+                                    <div
+                                      key={r.id}
+                                      className="flex items-center gap-3 px-4 py-2.5 opacity-45"
+                                    >
+                                      <span className="w-2.5 h-2.5 rounded-full bg-border shrink-0" />
+                                      <span className="text-sm text-muted-foreground flex-1">
+                                        {label}
+                                      </span>
+                                      <Num className="text-xs text-muted-foreground">
+                                        {r.time.slice(0, 5)}
+                                      </Num>
                                     </div>
                                   );
-                                }
-                                const label =
-                                  r.type === "snooze"
-                                    ? `Snoozed${r.snoozeDuration ? ` ${r.snoozeDuration}m` : ""}`
-                                    : "Skipped";
-                                return (
-                                  <div
-                                    key={r.id}
-                                    className="flex items-center gap-3 px-4 py-2.5 opacity-45"
-                                  >
-                                    <span className="w-2.5 h-2.5 rounded-full bg-border shrink-0" />
-                                    <span className="text-sm text-muted-foreground flex-1">
-                                      {label}
-                                    </span>
-                                    <Num className="text-xs text-muted-foreground">
-                                      {r.time.slice(0, 5)}
-                                    </Num>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                                })}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
