@@ -30,7 +30,6 @@ import {
   Moon,
   Bell,
   Download,
-  Upload,
   Plus,
   X,
   SkipForward,
@@ -43,16 +42,50 @@ import {
   ChevronDown,
   Martini,
 } from "lucide-react";
-import * as XLSX from "xlsx";
-import defaultHydraXls from "../../backup/HYDRAA.xls?raw";
 
 // ─── Google Sheets Integration Setup ──────────────────────────────────────────
 const GOOGLE_SHEET_ID = "1AA1bEa8v-qe6LFiwcc6l6pFsaJH1cfOHCgrTtakNVyA";
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbwFLI7osrG6n-rc_IrWGhTrE6_4E8undX09EfNf2c3W_gb87aLqDN2tlEBxh52BxGqQ/exec";
+  "https://script.google.com/macros/s/AKfycbxYPPams6SOWQrgKGP7SmInZ8Eu-QPBm42UXgtX-zOAhZhIaVXu7zY1hUAX3cbTX1eJ/exec";
 
 // Public CSV export endpoint from Google Sheets
 const GOOGLE_FETCH_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv`;
+
+interface GoogleSheetStatePayload {
+  state?: unknown;
+  theme?: unknown;
+  data?: {
+    state?: unknown;
+    theme?: unknown;
+  };
+  xml?: string;
+}
+
+function decodeSingleCellCsv(csv: string): string | null {
+  const text = csv.trim();
+  if (!text) return null;
+
+  // If it is not a quoted CSV cell, return raw text.
+  if (!text.startsWith('"')) return text;
+
+  let i = 1;
+  let out = "";
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '"') {
+      if (text[i + 1] === '"') {
+        out += '"';
+        i += 2;
+        continue;
+      }
+      return out;
+    }
+    out += ch;
+    i += 1;
+  }
+
+  return out;
+}
 
 // ─── Sound System ────────────────────────────────────────────────────────────
 
@@ -381,218 +414,135 @@ function mergeDefaults(partial: any): AppState {
   return { ...getDefaultState(), ...(partial ?? {}) };
 }
 
-function getSheet(doc: Document, name: string): Element | null {
-  const sheets = Array.from(doc.getElementsByTagName("Worksheet"));
-  for (const sheet of sheets) {
-    const n = sheet.getAttribute("ss:Name") ?? sheet.getAttribute("Name");
-    if (n === name) return sheet;
+function normalizeDate(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const parsed = new Date(trimmed);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString("en-CA");
   }
+
+  const fallback = new Date(`1970-01-01T${trimmed}`);
+  if (!isNaN(fallback.getTime())) {
+    return fallback.toLocaleDateString("en-CA");
+  }
+
+  return trimmed;
+}
+
+function normalizeTime(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const parsed = new Date(trimmed);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toTimeString().slice(0, 8);
+  }
+
+  const fallback = new Date(`1970-01-01T${trimmed}`);
+  if (!isNaN(fallback.getTime())) {
+    return fallback.toTimeString().slice(0, 8);
+  }
+
+  return trimmed;
+}
+
+function normalizeSheetState(state: any): AppState {
+  const normalized = mergeDefaults(state);
+
+  normalized.records = Array.isArray(state?.records)
+    ? state.records
+        .map((record: any, index: number) => {
+          const date = normalizeDate(record?.date);
+          const time = normalizeTime(record?.time);
+          const timestamp = Number(record?.timestamp) || Date.now() + index;
+
+          return {
+            ...record,
+            id: record?.id ? String(record.id) : String(timestamp),
+            date: date || normalizeDate(new Date(timestamp).toString()),
+            time: time || normalizeTime(new Date(timestamp).toTimeString()),
+            timestamp,
+            amount: Number(record?.amount) || 0,
+            drinkType:
+              typeof record?.drinkType === "string" && record.drinkType
+                ? record.drinkType
+                : "water",
+            type:
+              record?.type === "snooze" || record?.type === "skip"
+                ? record.type
+                : "drink",
+            source: record?.source === "reminder" ? "reminder" : "manual",
+            snoozeDuration: Number(record?.snoozeDuration) || undefined,
+            dailyWaterTotal: Number(record?.dailyWaterTotal) || 0,
+          };
+        })
+        .sort((a, b) => b.timestamp - a.timestamp)
+    : [];
+
+  normalized.dailyGoals = Array.isArray(state?.dailyGoals)
+    ? state.dailyGoals.map((goal: any) => ({
+        date: normalizeDate(goal?.date),
+        goal: Number(goal?.goal) || 0,
+      }))
+    : [];
+
+  return normalized;
+}
+
+function parseTheme(theme: unknown): ThemeMode {
+  return theme === "light" || theme === "dark" ? theme : "dark";
+}
+
+function parseSheetResponseToState(
+  text: string,
+  contentType: string | null,
+): { state: AppState; theme: ThemeMode } | null {
+  const trimmed = text.trim();
+
+  // Public Google Sheet endpoint may return a single quoted CSV cell containing JSON.
+  if (contentType?.includes("text/csv")) {
+    const decoded = decodeSingleCellCsv(trimmed) ?? trimmed;
+    if (decoded !== trimmed) {
+      return parseSheetResponseToState(decoded, null);
+    }
+  }
+
+  if (
+    trimmed.startsWith('"') &&
+    trimmed.endsWith('"') &&
+    !trimmed.includes("\n")
+  ) {
+    const decoded = decodeSingleCellCsv(trimmed);
+    if (decoded !== null && decoded !== trimmed) {
+      return parseSheetResponseToState(decoded, null);
+    }
+  }
+
+  // Apps Script JSON response path
+  if (
+    contentType?.includes("application/json") ||
+    trimmed.startsWith("{") ||
+    trimmed.startsWith("[")
+  ) {
+    try {
+      const payload = JSON.parse(trimmed) as GoogleSheetStatePayload;
+      const maybeState = payload?.state ?? payload?.data?.state;
+      if (maybeState && typeof maybeState === "object") {
+        return {
+          state: normalizeSheetState(maybeState),
+          theme: parseTheme(payload?.theme ?? payload?.data?.theme),
+        };
+      }
+    } catch {
+      // Ignore invalid JSON; no local fallback.
+    }
+  }
+
   return null;
-}
-
-function rowText(row: Element, index: number): string {
-  const cells = Array.from(row.getElementsByTagName("Cell"));
-  return (
-    cells[index]?.getElementsByTagName("Data")?.[0]?.textContent?.trim() ?? ""
-  );
-}
-
-function xlsToState(xml: string): { state: AppState; theme: ThemeMode } | null {
-  try {
-    const doc = new DOMParser().parseFromString(xml, "application/xml");
-    if (doc.querySelector("parsererror")) return null;
-
-    const state = getDefaultState();
-    const records: HydrationRecord[] = [];
-    const dailyGoals: DailyGoalRecord[] = [];
-    let theme: ThemeMode = "dark";
-
-    const logSheet = getSheet(doc, "HYDRAA Log");
-    if (logSheet) {
-      const rows = Array.from(logSheet.getElementsByTagName("Row"));
-      rows.slice(1).forEach((row, i) => {
-        const date = rowText(row, 0);
-        const time = rowText(row, 1);
-        if (!date || !time) return;
-
-        const drinkLabel = rowText(row, 2);
-        const drinkType =
-          DRINK_KEYS.find((k) => DRINKS[k].label === drinkLabel) ?? "water";
-        const typeValue = rowText(row, 4).toLowerCase();
-        const recordType: HydrationRecord["type"] =
-          typeValue === "snoozed" || typeValue === "snooze"
-            ? "snooze"
-            : typeValue === "skipped" || typeValue === "skip"
-              ? "skip"
-              : "drink";
-        const sourceValue = rowText(row, 5).toLowerCase();
-        const source: HydrationRecord["source"] =
-          sourceValue === "reminder" ? "reminder" : "manual";
-
-        const timestamp =
-          new Date(`${date}T${time}`).getTime() || Date.now() + i;
-        records.push({
-          id: String(timestamp),
-          date,
-          time,
-          timestamp,
-          amount: Math.max(0, Number(rowText(row, 3)) || 0),
-          drinkType,
-          type: recordType,
-          source,
-          snoozeDuration: Number(rowText(row, 6)) || undefined,
-          dailyWaterTotal: Math.max(0, Number(rowText(row, 7)) || 0),
-        });
-
-        const rowGoal = Number(rowText(row, 8));
-        if (Number.isFinite(rowGoal) && rowGoal >= 0) state.dailyGoal = rowGoal;
-      });
-    }
-
-    const configSheet = getSheet(doc, "HYDRAA Config");
-    if (configSheet) {
-      const rows = Array.from(configSheet.getElementsByTagName("Row"));
-      rows.slice(1).forEach((row) => {
-        const key = rowText(row, 0);
-        const value = rowText(row, 1);
-        if (!key) return;
-        if (key === "Daily Goal")
-          state.dailyGoal = Number(value) || state.dailyGoal;
-        if (key === "Reminder Interval")
-          state.reminderInterval = Number(value) || state.reminderInterval;
-        if (key === "Snooze Durations") {
-          const parsed = value
-            .split(",")
-            .map((s) => Number(s.trim()))
-            .filter((n) => Number.isFinite(n) && n > 0);
-          if (parsed.length) state.snoozeDurations = parsed;
-        }
-        if (key === "Reminder Enabled")
-          state.reminderEnabled = value === "true";
-        if (key === "Sound Choice" && value) state.soundChoice = value;
-        if (key === "Sound Volume") {
-          const vol = Number(value);
-          if (Number.isFinite(vol))
-            state.soundVolume = Math.max(0, Math.min(1, vol));
-        }
-        if (key === "Sound Enabled") state.soundEnabled = value === "true";
-        if (key === "Theme" && (value === "light" || value === "dark"))
-          theme = value;
-      });
-    }
-
-    const goalsSheet = getSheet(doc, "Daily Goals");
-    if (goalsSheet) {
-      const rows = Array.from(goalsSheet.getElementsByTagName("Row"));
-      rows.slice(1).forEach((row) => {
-        const date = rowText(row, 0);
-        const goal = Number(rowText(row, 1)) || 0;
-        if (date && goal >= 0) dailyGoals.push({ date, goal });
-      });
-    }
-
-    state.records = records.sort((a, b) => b.timestamp - a.timestamp);
-    state.dailyGoals = dailyGoals;
-    return { state: mergeDefaults(state), theme };
-  } catch {
-    return null;
-  }
-}
-
-function stateToXlsXml(state: AppState, theme: ThemeMode): string {
-  const esc = (v: string | number | boolean) =>
-    String(v ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;");
-  const c = (v: string | number | boolean, num = false) =>
-    `<Cell><Data ss:Type="${num ? "Number" : "String"}">${esc(v)}</Data></Cell>`;
-  const hdr = (t: string) =>
-    `<Cell ss:StyleID="h"><Data ss:Type="String">${esc(t)}</Data></Cell>`;
-
-  const hdrs = [
-    "Date",
-    "Time",
-    "Drink Type",
-    "Amount (ml)",
-    "Type",
-    "Source",
-    "Snooze (min)",
-    "Water Total (ml)",
-    "Daily Goal (ml)",
-  ];
-  const rows = state.records.map((r) => [
-    r.date,
-    r.time,
-    DRINKS[r.drinkType]?.label ?? r.drinkType,
-    r.amount,
-    r.type === "drink" ? "Drink" : r.type === "snooze" ? "Snoozed" : "Skipped",
-    r.source === "manual" ? "Manual" : "Reminder",
-    r.snoozeDuration ?? "",
-    r.dailyWaterTotal,
-    getGoalForDate(state, r.date),
-  ]);
-  const numCols = new Set([3, 7, 8]);
-
-  const configRows: [string, string | number | boolean][] = [
-    ["Daily Goal", state.dailyGoal],
-    ["Reminder Interval", state.reminderInterval],
-    ["Snooze Durations", state.snoozeDurations.join(",")],
-    ["Reminder Enabled", state.reminderEnabled],
-    ["Sound Choice", state.soundChoice],
-    ["Sound Volume", state.soundVolume],
-    ["Sound Enabled", state.soundEnabled],
-    ["Theme", theme],
-    ["Exported At", new Date().toLocaleString()],
-  ];
-
-  const goalRows = (state.dailyGoals ?? [])
-    .map((g) => `<Row>${c(g.date)}${c(g.goal, true)}</Row>`)
-    .join("\n");
-
-  return `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-<Styles>
-  <Style ss:ID="h"><Font ss:Bold="1" ss:Color="#FFF"/><Interior ss:Color="#0284C7" ss:Pattern="Solid"/></Style>
-  <Style ss:ID="s"><Font ss:Bold="1"/><Interior ss:Color="#E8F4FD" ss:Pattern="Solid"/></Style>
-</Styles>
-<Worksheet ss:Name="HYDRAA Log"><Table>
-<Row>${hdrs.map(hdr).join("")}</Row>
-${rows.map((r) => `<Row>${r.map((v, i) => c(v as string | number, numCols.has(i))).join("")}</Row>`).join("\n")}
-</Table></Worksheet>
-<Worksheet ss:Name="Summary"><Table>
-<Row>${hdr("Metric")}${hdr("Value")}</Row>
-${DRINK_KEYS.map(
-  (dt) =>
-    `<Row>${c(DRINKS[dt].label + " (ml)")}${c(
-      state.records
-        .filter((r) => r.type === "drink" && r.drinkType === dt)
-        .reduce((s, r) => s + r.amount, 0),
-      true,
-    )}</Row>`,
-).join("")}
-<Row>${c("Total Drink Entries")}${c(state.records.filter((r) => r.type === "drink").length, true)}</Row>
-<Row>${c("Snoozed")}${c(state.records.filter((r) => r.type === "snooze").length, true)}</Row>
-<Row>${c("Skipped")}${c(state.records.filter((r) => r.type === "skip").length, true)}</Row>
-<Row>${c("Default Daily Goal (ml)")}${c(state.dailyGoal, true)}</Row>
-</Table></Worksheet>
-<Worksheet ss:Name="HYDRAA Config"><Table>
-<Row>${hdr("Setting")}${hdr("Value")}</Row>
-${configRows.map(([k, v]) => `<Row>${c(k)}${c(v)}</Row>`).join("\n")}
-</Table></Worksheet>
-<Worksheet ss:Name="Daily Goals"><Table>
-<Row>${hdr("Date")}${hdr("Goal (ml)")}</Row>
-${goalRows}
-</Table></Worksheet>
-</Workbook>`;
-}
-
-function xlsLoad(): { state: AppState; theme: ThemeMode } {
-  const parsedDefault = xlsToState(defaultHydraXls);
-  if (parsedDefault) {
-    return parsedDefault;
-  }
-
-  return { state: getDefaultState(), theme: "dark" };
 }
 
 // ─── Theme hook ───────────────────────────────────────────────────────────────
@@ -634,10 +584,7 @@ function formatAgo(ms: number) {
   return rm ? `${h}h ${rm}m` : `${h}h ago`;
 }
 
-function downloadXls(text: string, filename = "HYDRAA.xls") {
-  const blob = new Blob([text], {
-    type: "application/vnd.ms-excel;charset=utf-8;",
-  });
+function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -1879,8 +1826,6 @@ function Sidebar({
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
-let backupWriteQueue: Promise<void> = Promise.resolve();
-
 export default function App() {
   const { mode, setMode, isDark } = useTheme();
   const [appState, setAppState] = useState<AppState>(() => getDefaultState());
@@ -1904,8 +1849,6 @@ export default function App() {
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hydratedRef = useRef(false);
   // const exportQueuedRef = useRef(false);
-  const importInputRef = useRef<HTMLInputElement | null>(null);
-  const backupRootHandleRef = useRef<any>(null);
   const [expandedHistoryDates, setExpandedHistoryDates] = useState<Set<string>>(
     new Set([todayStr()]),
   );
@@ -1915,28 +1858,84 @@ export default function App() {
     appStateRef.current = appState;
   }, [appState]);
 
-  // ✅ NEW GOOGLE DRIVE LOAD LOGIC:
+  const fetchGoogleSheetState = useCallback(async () => {
+    // Read state from Google Apps Script JSON endpoint first.
+    try {
+      const jsonUrl = `${APPS_SCRIPT_URL}?action=getState&_=${Date.now()}`;
+      const response = await fetch(jsonUrl, {
+        cache: "no-store",
+        mode: "cors",
+        redirect: "follow",
+        credentials: "omit",
+      });
+      if (response.ok) {
+        const textData = await response.text();
+        try {
+          const payload = JSON.parse(textData) as {
+            ok?: boolean;
+            state?: unknown;
+            theme?: unknown;
+          };
+          if (
+            payload?.ok &&
+            payload.state &&
+            typeof payload.state === "object"
+          ) {
+            return {
+              state: mergeDefaults(payload.state),
+              theme: parseTheme(payload.theme),
+            };
+          }
+        } catch (parseError) {
+          console.warn("Failed to parse getState JSON response:", parseError);
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Error loading data from Google Sheet JSON endpoint:",
+        error,
+      );
+    }
+
+    // Fallback to public Google Sheet CSV if Apps Script endpoint fails.
+    try {
+      const response = await fetch(`${GOOGLE_FETCH_URL}&_=${Date.now()}`, {
+        cache: "no-store",
+      });
+      if (response.ok) {
+        const textData = await response.text();
+        const parsed = parseSheetResponseToState(
+          textData,
+          response.headers.get("content-type"),
+        );
+        if (parsed) return parsed;
+      } else {
+        console.warn(
+          "Google Sheet CSV fetch failed with status:",
+          response.status,
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Error loading data from Google Sheet CSV endpoint:",
+        error,
+      );
+    }
+
+    return null;
+  }, []);
+
+  // Load application state from Google Sheet.
   useEffect(() => {
     async function fetchDriveData() {
       try {
-        const response = await fetch(GOOGLE_FETCH_URL);
-        const textData = await response.text();
-
-        // Parse XML Spreadsheet format into app state
-        const parsed = xlsToState(textData);
+        const parsed = await fetchGoogleSheetState();
         if (parsed) {
           setAppState(parsed.state);
           setMode(parsed.theme);
-        } else {
-          const saved = xlsLoad();
-          setAppState(saved.state);
-          setMode(saved.theme);
         }
       } catch (err) {
-        console.error("Error fetching data from Google Drive:", err);
-        const saved = xlsLoad();
-        setAppState(saved.state);
-        setMode(saved.theme);
+        console.error("Error fetching data from Google Sheet:", err);
       } finally {
         hydratedRef.current = true;
         setLoaded(true);
@@ -1945,126 +1944,7 @@ export default function App() {
     }
 
     fetchDriveData();
-  }, []);
-  // ── Export updated HYDRAA.xls only after committed user actions.
-  // useEffect(() => {
-  //   if (!loaded || !hydratedRef.current || !exportQueuedRef.current) return;
-  //   exportQueuedRef.current = false;
-  //   void saveWorkbookToBackup(stateToXlsXml(appState, mode));
-  // }, [appState, mode, loaded]);
-
-  // function queueExport() {
-  //   exportQueuedRef.current = true;
-  // }
-
-  let _backupWriteQueue: Promise<void> = Promise.resolve();
-
-  async function saveWorkbookToBackup(xml: string): Promise<void> {
-    const anyWindow = window as any;
-
-    // Fallback for browsers that don't support File System Access API
-    if (!anyWindow.showDirectoryPicker) {
-      downloadXls(xml, "HYDRAA.xls");
-      return;
-    }
-
-    // Queue writes so only one export happens at a time
-    backupWriteQueue = backupWriteQueue
-      .catch(() => {
-        // Keep queue usable after a previous failure
-      })
-      .then(async () => {
-        let root = backupRootHandleRef.current;
-
-        // Ask for folder if we don't have one
-        if (!root) {
-          root = await anyWindow.showDirectoryPicker({
-            mode: "readwrite",
-          });
-
-          backupRootHandleRef.current = root;
-        }
-
-        // Verify root permission
-        let rootPermission = await root.queryPermission({
-          mode: "readwrite",
-        });
-
-        if (rootPermission !== "granted") {
-          rootPermission = await root.requestPermission({
-            mode: "readwrite",
-          });
-        }
-
-        if (rootPermission !== "granted") {
-          throw new Error(
-            "Permission to write to the selected folder was not granted.",
-          );
-        }
-
-        // Open/create backup folder
-        const backupDir = await root.getDirectoryHandle("backup", {
-          create: true,
-        });
-
-        // Open/create HYDRAA.xls
-        const fileHandle = await backupDir.getFileHandle("HYDRAA.xls", {
-          create: true,
-        });
-
-        // Verify file permission
-        let filePermission = await fileHandle.queryPermission({
-          mode: "readwrite",
-        });
-
-        if (filePermission !== "granted") {
-          filePermission = await fileHandle.requestPermission({
-            mode: "readwrite",
-          });
-        }
-
-        if (filePermission !== "granted") {
-          throw new Error("Permission to write HYDRAA.xls was not granted.");
-        }
-
-        // Create writable stream
-        const writable = await fileHandle.createWritable({
-          keepExistingData: false,
-        });
-
-        try {
-          await writable.write(xml);
-        } finally {
-          await writable.close();
-        }
-
-        console.log("HYDRAA.xls successfully exported to backup folder.");
-      });
-
-    return backupWriteQueue;
-  }
-
-  async function handleImportFile(file: File) {
-    try {
-      const text = await file.text();
-      const parsed = xlsToState(text);
-      if (!parsed) {
-        window.alert("That file could not be read as a HYDRAA.xls export.");
-        return;
-      }
-      // exportQueuedRef.current = false;
-      hydratedRef.current = true;
-      setMode(parsed.theme);
-      setAppState(parsed.state);
-      setLoaded(true);
-    } catch {
-      window.alert("Could not import the selected file.");
-    }
-  }
-
-  function openImportPicker() {
-    importInputRef.current?.click();
-  }
+  }, [fetchGoogleSheetState, setMode]);
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30000);
@@ -2354,37 +2234,82 @@ export default function App() {
     // queueExport();
   }
 
-  // ✅ UPDATED EXPORT / DOWNLOAD FUNCTION
   async function handleDownload() {
-    const confirmed = window.confirm(
-      "Do you want to sync this update to Google Drive and download a local copy?",
-    );
-
-    if (!confirmed) return;
-
     setDlFlash(true);
-
     try {
-      const xmlContent = stateToXlsXml(appStateRef.current, mode);
-
-      // ✅ Using text/plain prevents the browser from sending a CORS OPTIONS preflight request
-      await fetch(APPS_SCRIPT_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8",
+      const response = await fetch(
+        `${APPS_SCRIPT_URL}?action=getXml&_=${Date.now()}`,
+        {
+          cache: "no-store",
+          mode: "cors",
+          redirect: "follow",
+          credentials: "omit",
         },
-        body: xmlContent,
+      );
+      if (!response.ok) {
+        throw new Error(
+          `Google Sheet workbook export failed: ${response.status}`,
+        );
+      }
+
+      const workbookXml = await response.text();
+      if (!workbookXml.trim()) {
+        throw new Error("Received empty workbook export from Google Sheet");
+      }
+
+      const blob = new Blob([workbookXml], {
+        type: "application/vnd.ms-excel",
       });
-
-      // Save local backup copy
-      await saveWorkbookToBackup(xmlContent);
-
-      alert("Drive file updated successfully and backup downloaded!");
+      downloadBlob(blob, "HYDRAA.xls");
     } catch (error: any) {
       console.error("Export failed:", error);
-      alert("Failed to update Google Drive file.");
+      alert("Failed to download workbook export from Google Sheet.");
     } finally {
       setTimeout(() => setDlFlash(false), 2000);
+    }
+  }
+
+  async function handleBackup() {
+    try {
+      const payload = {
+        action: "saveState",
+        sheetId: GOOGLE_SHEET_ID,
+        state: appStateRef.current,
+        theme: mode,
+        exportedAt: new Date().toISOString(),
+      };
+
+      const formData = new URLSearchParams({
+        action: "saveState",
+        sheetId: GOOGLE_SHEET_ID,
+        payload: JSON.stringify(payload),
+      });
+
+      const response = await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        mode: "cors",
+        redirect: "follow",
+        credentials: "omit",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        },
+        body: formData.toString(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Google Sheet save failed: ${response.status}`);
+      }
+
+      const parsed = await fetchGoogleSheetState();
+      if (parsed) {
+        setAppState(parsed.state);
+        setMode(parsed.theme);
+      }
+
+      alert("Backup saved to Google Sheet.");
+    } catch (error: any) {
+      console.error("Backup failed:", error);
+      alert("Failed to save backup to Google Sheet.");
     }
   }
 
@@ -2519,11 +2444,11 @@ export default function App() {
               <Plus className="w-3.5 h-3.5" /> Record Drink
             </button>
             <button
-              onClick={openImportPicker}
+              onClick={handleBackup}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted transition-colors"
             >
-              <Upload className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Import</span>
+              <ClipboardList className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Backup</span>
             </button>
             <button
               onClick={handleDownload}
@@ -3076,19 +3001,6 @@ export default function App() {
           )}
         </main>
       </div>
-
-      <input
-        ref={importInputRef}
-        type="file"
-        accept=".xls,.xml,text/xml,application/vnd.ms-excel"
-        className="hidden"
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          e.target.value = "";
-          if (!file) return;
-          await handleImportFile(file);
-        }}
-      />
 
       {/* ── MODALS ── */}
       {showRecord && (
