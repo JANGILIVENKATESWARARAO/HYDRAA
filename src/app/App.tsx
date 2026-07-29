@@ -43,7 +43,16 @@ import {
   ChevronDown,
   Martini,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import defaultHydraXls from "../../backup/HYDRAA.xls?raw";
+
+// ─── Google Sheets Integration Setup ──────────────────────────────────────────
+const GOOGLE_SHEET_ID = "1AA1bEa8v-qe6LFiwcc6l6pFsaJH1cfOHCgrTtakNVyA";
+const APPS_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbwFLI7osrG6n-rc_IrWGhTrE6_4E8undX09EfNf2c3W_gb87aLqDN2tlEBxh52BxGqQ/exec";
+
+// Public CSV export endpoint from Google Sheets
+const GOOGLE_FETCH_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv`;
 
 // ─── Sound System ────────────────────────────────────────────────────────────
 
@@ -806,7 +815,7 @@ function DrinkAreaChart({
   goalLine?: number;
 }) {
   const tickColor = isDark ? "#5F5F5F" : "#7C7C7C";
-  const gridColor = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+  const gridColor = isDark ? "#FFFFFF0D" : "#0000000D";
   const activeDrinks = DRINK_KEYS.filter((dt) => data.some((d) => d[dt] > 0));
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -900,7 +909,7 @@ function DrinkGroupedBarChart({
   goalLine?: number;
 }) {
   const tickColor = isDark ? "#5F5F5F" : "#7C7C7C";
-  const gridColor = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+  const gridColor = isDark ? "#FFFFFF0D" : "#0000000D";
   const activeDrinks = DRINK_KEYS.filter((dt) => data.some((d) => d[dt] > 0));
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -939,7 +948,7 @@ function DrinkGroupedBarChart({
         <Tooltip
           content={<ChartTooltip />}
           cursor={{
-            fill: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
+            fill: isDark ? "#38bdf8" : "#0284c7",
           }}
         />
         {goalLine && (
@@ -975,7 +984,7 @@ function DrinkLineChart({
   height?: number;
 }) {
   const tickColor = isDark ? "#5F5F5F" : "#7C7C7C";
-  const gridColor = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+  const gridColor = isDark ? "#FFFFFF0D" : "#0000000D";
   const activeDrinks = DRINK_KEYS.filter((dt) => data.some((d) => d[dt] > 0));
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -1906,17 +1915,37 @@ export default function App() {
     appStateRef.current = appState;
   }, [appState]);
 
-  // ── Bootstrap: load from HYDRAA.xls (single source of truth)
+  // ✅ NEW GOOGLE DRIVE LOAD LOGIC:
   useEffect(() => {
-    const saved = xlsLoad();
-    setAppState(saved.state);
-    setMode(saved.theme);
-    hydratedRef.current = true;
-    setLoaded(true);
-    // Request notification permission after a user-trusted load event
-    requestNotificationPermission();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    async function fetchDriveData() {
+      try {
+        const response = await fetch(GOOGLE_FETCH_URL);
+        const textData = await response.text();
 
+        // Parse XML Spreadsheet format into app state
+        const parsed = xlsToState(textData);
+        if (parsed) {
+          setAppState(parsed.state);
+          setMode(parsed.theme);
+        } else {
+          const saved = xlsLoad();
+          setAppState(saved.state);
+          setMode(saved.theme);
+        }
+      } catch (err) {
+        console.error("Error fetching data from Google Drive:", err);
+        const saved = xlsLoad();
+        setAppState(saved.state);
+        setMode(saved.theme);
+      } finally {
+        hydratedRef.current = true;
+        setLoaded(true);
+        requestNotificationPermission();
+      }
+    }
+
+    fetchDriveData();
+  }, []);
   // ── Export updated HYDRAA.xls only after committed user actions.
   // useEffect(() => {
   //   if (!loaded || !hydratedRef.current || !exportQueuedRef.current) return;
@@ -2325,41 +2354,37 @@ export default function App() {
     // queueExport();
   }
 
+  // ✅ UPDATED EXPORT / DOWNLOAD FUNCTION
   async function handleDownload() {
     const confirmed = window.confirm(
-      "Do you want to export the current HYDRAA data and overwrite the existing HYDRAA.xls file?",
+      "Do you want to sync this update to Google Drive and download a local copy?",
     );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
+
+    setDlFlash(true);
 
     try {
-      const xml = stateToXlsXml(appStateRef.current, mode);
+      const xmlContent = stateToXlsXml(appStateRef.current, mode);
 
-      await saveWorkbookToBackup(xml);
+      // ✅ Using text/plain prevents the browser from sending a CORS OPTIONS preflight request
+      await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8",
+        },
+        body: xmlContent,
+      });
 
-      setDlFlash(true);
+      // Save local backup copy
+      await saveWorkbookToBackup(xmlContent);
 
-      setTimeout(() => {
-        setDlFlash(false);
-      }, 2000);
-
-      console.log("HYDRAA export completed successfully.");
+      alert("Drive file updated successfully and backup downloaded!");
     } catch (error: any) {
-      console.error("HYDRAA export failed:", error);
-
-      if (error?.name === "AbortError") {
-        window.alert(
-          "Export cancelled. Please select the HYDRAA application folder to continue.",
-        );
-      } else {
-        window.alert(
-          `Unable to export HYDRAA.xls.\n\n${
-            error?.message || "Unknown error occurred."
-          }`,
-        );
-      }
+      console.error("Export failed:", error);
+      alert("Failed to update Google Drive file.");
+    } finally {
+      setTimeout(() => setDlFlash(false), 2000);
     }
   }
 
