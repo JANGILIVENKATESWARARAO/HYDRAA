@@ -180,7 +180,7 @@ async function requestNotificationPermission(): Promise<boolean> {
   return result === "granted";
 }
 
-function fireNativeNotification(todayWater: number, goal: number) {
+async function fireNativeNotification(todayWater: number, goal: number) {
   if (!("Notification" in window) || Notification.permission !== "granted")
     return;
   const pct = goal > 0 ? Math.round((todayWater / goal) * 100) : 0;
@@ -194,12 +194,33 @@ function fireNativeNotification(todayWater: number, goal: number) {
     todayWater > 0
       ? `${todayWater} / ${goal} ml today (${pct}%) · ${timeStr}`
       : `Goal: ${goal} ml · Start hydrating! · ${timeStr}`;
+  const notificationId = `hydraa-reminder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   try {
-    new Notification(title, {
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        await registration.showNotification(title, {
+          body,
+          icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='28'%3E%F0%9F%92%A7%3C/text%3E%3C/svg%3E",
+          tag: notificationId,
+          renotify: false,
+          requireInteraction: true,
+          silent: false,
+        });
+        return;
+      }
+    }
+
+    const notification = new Notification(title, {
       body,
       icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='28'%3E%F0%9F%92%A7%3C/text%3E%3C/svg%3E",
-      tag: "hydraa-reminder",
+      tag: notificationId,
+      requireInteraction: true,
+      silent: false,
     });
+
+    // Keep the center clean while still forcing visible alert on each reminder.
+    setTimeout(() => notification.close(), 15000);
   } catch {
     /* silently ignore if blocked */
   }
@@ -1719,10 +1740,13 @@ function SettingsPage({
                       hour: "numeric",
                       minute: "2-digit",
                     });
+                    const testNotificationId = `hydraa-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
                     try {
                       new Notification("Time to drink water 💧", {
                         body: `Test notification · ${timeStr}`,
-                        tag: "hydraa-test",
+                        tag: testNotificationId,
+                        requireInteraction: true,
+                        silent: false,
                       });
                     } catch {
                       /* ignore */
@@ -2306,7 +2330,7 @@ export default function App() {
       )
       .reduce((sum, r) => sum + r.amount, 0);
     const goal = getGoalForDate(s, todayDate);
-    fireNativeNotification(todayWaterAmount, goal);
+    void fireNativeNotification(todayWaterAmount, goal);
     setShowReminder(true);
   }
 
@@ -3431,7 +3455,7 @@ export default function App() {
                   )
                   .reduce((sum, r) => sum + r.amount, 0);
                 const goal = getGoalForDate(s, todayDate);
-                fireNativeNotification(todayWater, goal);
+                void fireNativeNotification(todayWater, goal);
                 setShowReminder(true);
               }}
               onSave={handleSettingsSave}
