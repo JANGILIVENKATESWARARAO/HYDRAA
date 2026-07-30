@@ -90,126 +90,61 @@ function decodeSingleCellCsv(csv: string): string | null {
 
 // ─── Sound System ────────────────────────────────────────────────────────────
 
-export const SOUND_OPTIONS = [
-  { id: "gentle", label: "Gentle Chime" },
-  { id: "bell", label: "Bell" },
-  { id: "pulse", label: "Pulse Beeps" },
-  { id: "alert", label: "Alert Tone" },
-  { id: "water", label: "Water Drop" },
-  { id: "none", label: "Silent" },
-  { id: "fahh", label: "Faahh.." },
-];
+const SOUND_FILE_BY_ID = Object.fromEntries(
+  Object.entries(
+    import.meta.glob("../assets/sounds/*.{mp3,wav,ogg,m4a}", {
+      eager: true,
+      import: "default",
+    }) as Record<string, string>,
+  )
+    .map(([path, src]) => [path.split("/").pop() ?? path, src])
+    .sort(([a], [b]) => a.localeCompare(b)),
+) as Record<string, string>;
 
-let _audioCtx: AudioContext | null = null;
+function getDefaultSoundChoice() {
+  return Object.keys(SOUND_FILE_BY_ID)[0] ?? "none";
+}
+
+function stripFileExtension(fileName: string) {
+  return fileName.replace(/\.[^/.]+$/, "");
+}
+
+export const SOUND_OPTIONS = [
+  ...Object.keys(SOUND_FILE_BY_ID).map((fileName) => ({
+    id: fileName,
+    label: stripFileExtension(fileName),
+  })),
+  { id: "none", label: "silent" },
+];
+const SOUND_OPTION_IDS = new Set(SOUND_OPTIONS.map((s) => s.id));
+
 let _soundLoopId: ReturnType<typeof setInterval> | null = null;
 
-function getAudioCtx(): AudioContext {
-  if (!_audioCtx || _audioCtx.state === "closed")
-    _audioCtx = new (
-      window.AudioContext || (window as any).webkitAudioContext
-    )();
-  return _audioCtx;
+function _soundRepeatMs() {
+  return 2000;
 }
 
-function _playTone(type: string, volume: number, ctx: AudioContext) {
-  const gain = ctx.createGain();
-  gain.gain.value = 0;
-  gain.connect(ctx.destination);
-  const v = Math.max(0, Math.min(1, volume));
-  const now = ctx.currentTime;
+let _activeSoundAudio: HTMLAudioElement | null = null;
 
-  if (type === "gentle") {
-    [523.25, 659.25, 783.99].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      const t = now + i * 0.22;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(v * 0.55, t + 0.06);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
-      osc.connect(gain);
-      osc.start(t);
-      osc.stop(t + 0.6);
-    });
-  } else if (type === "bell") {
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(880, now);
-    osc.frequency.exponentialRampToValueAtTime(440, now + 1.4);
-    gain.gain.setValueAtTime(v, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.6);
-    osc.connect(gain);
-    osc.start(now);
-    osc.stop(now + 1.7);
-  } else if (type === "pulse") {
-    [0, 0.22, 0.44].forEach((t) => {
-      const osc = ctx.createOscillator();
-      osc.type = "square";
-      osc.frequency.value = 880;
-      gain.gain.setValueAtTime(0, now + t);
-      gain.gain.linearRampToValueAtTime(v * 0.25, now + t + 0.02);
-      gain.gain.setValueAtTime(v * 0.25, now + t + 0.1);
-      gain.gain.linearRampToValueAtTime(0, now + t + 0.18);
-      osc.connect(gain);
-      osc.start(now + t);
-      osc.stop(now + t + 0.22);
-    });
-  } else if (type === "alert") {
-    [0, 0.38].forEach((t, i) => {
-      const osc = ctx.createOscillator();
-      osc.type = "triangle";
-      osc.frequency.value = i === 0 ? 600 : 800;
-      gain.gain.setValueAtTime(0, now + t);
-      gain.gain.linearRampToValueAtTime(v * 0.5, now + t + 0.02);
-      gain.gain.setValueAtTime(v * 0.5, now + t + 0.28);
-      gain.gain.linearRampToValueAtTime(0, now + t + 0.35);
-      osc.connect(gain);
-      osc.start(now + t);
-      osc.stop(now + t + 0.38);
-    });
-  } else if (type === "water") {
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(900, now);
-    osc.frequency.exponentialRampToValueAtTime(200, now + 0.28);
-    gain.gain.setValueAtTime(v * 0.7, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
-    osc.connect(gain);
-    osc.start(now);
-    osc.stop(now + 0.42);
-  }
-}
+function playAssetSound(type: string, volume: number) {
+  const src = SOUND_FILE_BY_ID[type];
+  if (!src) return;
 
-function _soundRepeatMs(type: string) {
-  return type === "pulse"
-    ? 1600
-    : type === "water"
-      ? 1400
-      : type === "alert"
-        ? 2200
-        : type === "bell"
-          ? 200
-          : 2600;
-}
-
-let _fahhAudio: HTMLAudioElement | null = null;
-
-function playFahhSound(volume: number) {
   try {
-    if (!_fahhAudio) {
-      _fahhAudio = new Audio("src/assets/sounds/fahhhhhhhhhhhhhh.mp3");
+    if (!_activeSoundAudio) {
+      _activeSoundAudio = new Audio(src);
+    } else if (_activeSoundAudio.src !== src) {
+      _activeSoundAudio.src = src;
     }
 
-    _fahhAudio.pause();
-    _fahhAudio.currentTime = 0;
+    _activeSoundAudio.pause();
+    _activeSoundAudio.currentTime = 0;
 
-    // volume should be between 0 and 1
-    // _fahhAudio.volume = Math.max(0, Math.min(1, volume));
-    _fahhAudio.volume = Math.max(0, Math.min(1, volume / 100));
+    _activeSoundAudio.volume = Math.max(0, Math.min(1, volume));
 
-    void _fahhAudio.play();
+    void _activeSoundAudio.play();
   } catch (error) {
-    console.error("Unable to play FAHH sound:", error);
+    console.error("Unable to play reminder sound:", error);
   }
 }
 
@@ -217,31 +152,11 @@ function startReminderSound(type: string, volume: number) {
   stopReminderSound();
   if (type === "none") return;
 
-  // Play FAHH audio file
-  if (type === "fahh") {
-    playFahhSound(volume);
+  playAssetSound(type, volume);
 
-    // Repeat FAHH every 3 seconds while reminder is visible
-    _soundLoopId = setInterval(() => {
-      playFahhSound(volume);
-    }, 3000);
-
-    return;
-  }
-
-  // Existing Web Audio sounds
-  try {
-    const ctx = getAudioCtx();
-    if (ctx.state === "suspended") ctx.resume();
-    _playTone(type, volume, ctx);
-    _soundLoopId = setInterval(() => {
-      try {
-        const c = getAudioCtx();
-        if (c.state === "suspended") c.resume();
-        _playTone(type, volume, c);
-      } catch {}
-    }, _soundRepeatMs(type));
-  } catch {}
+  _soundLoopId = setInterval(() => {
+    playAssetSound(type, volume);
+  }, _soundRepeatMs());
 }
 
 function stopReminderSound() {
@@ -250,9 +165,9 @@ function stopReminderSound() {
     _soundLoopId = null;
   }
 
-  if (_fahhAudio) {
-    _fahhAudio.pause();
-    _fahhAudio.currentTime = 0;
+  if (_activeSoundAudio) {
+    _activeSoundAudio.pause();
+    _activeSoundAudio.currentTime = 0;
   }
 }
 
@@ -291,19 +206,7 @@ function fireNativeNotification(todayWater: number, goal: number) {
 
 function playTestSound(type: string, volume: number) {
   if (type === "none") return;
-
-  // Play FAHH audio file
-  if (type === "fahh") {
-    playFahhSound(volume);
-    return;
-  }
-
-  // Existing Web Audio sounds
-  try {
-    const ctx = getAudioCtx();
-    if (ctx.state === "suspended") ctx.resume();
-    _playTone(type, volume, ctx);
-  } catch {}
+  playAssetSound(type, volume);
 }
 
 // ─── Types & Constants ────────────────────────────────────────────────────────
@@ -390,6 +293,12 @@ interface AppState {
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
+function normalizeSoundChoice(value: unknown): string {
+  return typeof value === "string" && SOUND_OPTION_IDS.has(value)
+    ? value
+    : getDefaultSoundChoice();
+}
+
 function getGoalForDate(state: AppState, date: string): number {
   return (
     (state.dailyGoals ?? []).find((g) => g.date === date)?.goal ??
@@ -405,7 +314,7 @@ function getDefaultState(): AppState {
     reminderInterval: 30,
     snoozeDurations: [5, 10, 15, 30],
     reminderEnabled: true,
-    soundChoice: "gentle",
+    soundChoice: getDefaultSoundChoice(),
     soundVolume: 0.7,
     soundEnabled: true,
   };
@@ -453,6 +362,11 @@ function normalizeTime(value: unknown): string {
 
 function normalizeSheetState(state: any): AppState {
   const normalized = mergeDefaults(state);
+  normalized.soundChoice = normalizeSoundChoice(normalized.soundChoice);
+  normalized.soundVolume = Math.max(
+    0,
+    Math.min(1, Number(normalized.soundVolume) || 0.7),
+  );
 
   normalized.records = Array.isArray(state?.records)
     ? state.records
@@ -1496,7 +1410,9 @@ function SettingsPage({
   const [interval, setIntervalVal] = useState(state.reminderInterval);
   const [snoozes, setSnoozes] = useState(state.snoozeDurations.join(", "));
   const [enabled, setEnabled] = useState(state.reminderEnabled);
-  const [soundChoice, setSoundChoice] = useState(state.soundChoice ?? "gentle");
+  const [soundChoice, setSoundChoice] = useState(
+    normalizeSoundChoice(state.soundChoice),
+  );
   const [soundVolume, setSoundVolume] = useState(state.soundVolume ?? 0.7);
   const [soundEnabled, setSoundEnabled] = useState(state.soundEnabled ?? true);
   const [saved, setSaved] = useState(false);
