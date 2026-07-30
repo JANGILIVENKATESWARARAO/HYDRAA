@@ -2209,6 +2209,20 @@ export default function App() {
     // queueExport();
   }, [appState]);
 
+  function openReminderAlert() {
+    const s = appStateRef.current;
+    const todayDate = new Date().toISOString().slice(0, 10);
+    const todayWaterAmount = s.records
+      .filter(
+        (r) =>
+          r.date === todayDate && r.type === "drink" && r.drinkType === "water",
+      )
+      .reduce((sum, r) => sum + r.amount, 0);
+    const goal = getGoalForDate(s, todayDate);
+    fireNativeNotification(todayWaterAmount, goal);
+    setShowReminder(true);
+  }
+
   const scheduleReminder = useCallback(
     (ms: number) => {
       if (reminderRef.current) clearTimeout(reminderRef.current);
@@ -2217,21 +2231,7 @@ export default function App() {
         const s = appStateRef.current;
         if (!s.reminderEnabled) return;
         setNextReminderEndsAt(null);
-        setShowReminder(true);
-        // setAppState((s) => {
-        //   const today = new Date().toISOString().slice(0, 10);
-        //   const todayWater = s.records
-        //     .filter(
-        //       (r) =>
-        //         r.date === today &&
-        //         r.type === "drink" &&
-        //         r.drinkType === "water",
-        //     )
-        //     .reduce((sum, r) => sum + r.amount, 0);
-        //   const goal = getGoalForDate(s, today);
-        //   fireNativeNotification(todayWater, goal);
-        //   setShowReminder(true);
-        // });
+        openReminderAlert();
       }, ms);
     },
     [appState.reminderEnabled],
@@ -2392,7 +2392,7 @@ export default function App() {
     const ms = min * 60000;
     snoozeRef.current = setTimeout(() => {
       setSnoozeTimer(null);
-      setShowReminder(true);
+      openReminderAlert();
     }, ms);
     setSnoozeTimer({ endsAt: Date.now() + ms, pausedRemaining: null });
   }
@@ -2412,7 +2412,7 @@ export default function App() {
     const ms = snoozeTimer.pausedRemaining;
     snoozeRef.current = setTimeout(() => {
       setSnoozeTimer(null);
-      setShowReminder(true);
+      openReminderAlert();
     }, ms);
     setSnoozeTimer({ endsAt: Date.now() + ms, pausedRemaining: null });
   }
