@@ -1835,7 +1835,10 @@ function Sidebar({
   mode: ThemeMode;
   setMode: (m: ThemeMode) => void;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth < 768;
+  });
   const [themeOpen, setThemeOpen] = useState(false);
   const themeRef = useRef<HTMLDivElement>(null);
 
@@ -1848,6 +1851,17 @@ function Sidebar({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    function handleResize() {
+      if (window.innerWidth < 768) {
+        setCollapsed(true);
+        setThemeOpen(false);
+      }
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const THEME_OPTS: { key: ThemeMode; label: string; Icon: any }[] = [
     { key: "light", label: "Light", Icon: Sun },
     { key: "dark", label: "Dark", Icon: Moon },
@@ -1858,7 +1872,7 @@ function Sidebar({
 
   return (
     <aside
-      className="h-screen flex flex-col shrink-0 bg-card border-r border-border overflow-hidden relative z-20"
+      className="h-dvh flex flex-col shrink-0 bg-card border-r border-border overflow-hidden relative z-20"
       style={{
         width: W,
         transition: "width 0.22s cubic-bezier(0.4,0,0.2,1)",
@@ -2615,7 +2629,7 @@ export default function App() {
   return (
     <div
       className={[
-        "flex h-screen overflow-hidden bg-background font-sans",
+        "flex h-dvh overflow-hidden bg-background font-sans",
         loadingAction ? "pointer-events-none select-none" : "",
       ].join(" ")}
     >
@@ -2638,7 +2652,7 @@ export default function App() {
       {/* ── MAIN AREA ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* topBar */}
-        <header className="h-14 shrink-0 bg-card border-b border-border flex items-center justify-between px-6 gap-3">
+        <header className="shrink-0 bg-card border-b border-border flex flex-col sm:flex-row sm:items-center justify-between px-3 sm:px-6 py-2 sm:py-0 gap-2 sm:gap-3 h-14">
           {/* Snooze countdown widget */}
           <div className="flex items-center gap-2">
             {snoozeTimer ? (
@@ -2680,12 +2694,13 @@ export default function App() {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <button
               onClick={() => setShowRecord(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
             >
-              <Plus className="w-3.5 h-3.5" /> Record Drink
+              <Plus className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Record Drink</span>
             </button>
             <button
               onClick={handleBackup}
@@ -2722,19 +2737,19 @@ export default function App() {
         </header>
 
         {/* scrollable content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6">
           {/* ─── DASHBOARD ─── */}
           {activeTab === "dashboard" && (
             <div className="space-y-5">
               {/* progress */}
-              <div className="bg-card border border-border rounded-xl p-5">
+              <div className="bg-card border border-border rounded-xl p-3 sm:p-5">
                 <div className="flex flex-col md:flex-row md:items-end gap-5">
                   <div className="flex-1">
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                       Total Intake · Today
                     </p>
                     <div className="flex items-baseline gap-2 mb-4">
-                      <Num className="text-5xl font-bold text-foreground">
+                      <Num className="text-4xl sm:text-5xl font-bold text-foreground">
                         {todayTotal}
                       </Num>
                       <Num className="text-base text-muted-foreground">
@@ -2756,7 +2771,7 @@ export default function App() {
                       </Num>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 md:w-48 shrink-0">
+                  <div className="grid grid-cols-2 gap-2 md:w-48 shrink-0 w-full md:w-auto">
                     {[
                       { l: "Drinks", v: todayDrinks.length },
                       { l: "Since last", v: timeSinceLast },
@@ -2872,7 +2887,7 @@ export default function App() {
           {/* ─── HISTORY ─── */}
           {activeTab === "history" && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h2 className="font-semibold text-foreground text-md">
                     Drink History
@@ -2936,7 +2951,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => toggleHistoryDate(date)}
-                              className="w-full px-4 py-3 bg-muted-foreground/40 border-b border-border flex items-center justify-between gap-4 text-left hover:bg-muted-foreground/50 transition-colors"
+                              className="w-full px-3 sm:px-4 py-3 bg-muted-foreground/40 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4 text-left hover:bg-muted-foreground/50 transition-colors"
                             >
                               <div className="flex items-center gap-3 min-w-0">
                                 {isExpanded ? (
@@ -2964,7 +2979,7 @@ export default function App() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-3 text-xs text-secondary-foreground shrink-0">
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-secondary-foreground">
                                 <Num>💧 {dayWater} ml</Num>
 
                                 {dayTotal !== dayWater && (
@@ -2988,7 +3003,7 @@ export default function App() {
                                     const isDeleting = deletingId === r.id;
                                     return (
                                       <div key={r.id}>
-                                        <div className="flex items-center gap-3 px-4 py-3 group hover:bg-muted/40 transition-colors">
+                                        <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 group hover:bg-muted/40 transition-colors">
                                           <DrinkDot
                                             type={r.drinkType}
                                             isDark={isDark}
@@ -3013,7 +3028,7 @@ export default function App() {
                                           >
                                             +{r.amount} ml
                                           </Num>
-                                          <Num className="text-xs text-muted-foreground w-10 text-right shrink-0">
+                                          <Num className="text-xs text-muted-foreground w-10 text-right shrink-0 hidden sm:block">
                                             {r.time.slice(0, 5)}
                                           </Num>
                                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
