@@ -1569,7 +1569,7 @@ function SettingsPage({
               type="number"
               value={goal}
               onChange={(e) => setGoal(Number(e.target.value))}
-              className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+              className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
               style={{ fontFamily: "Inter, sans-serif" }}
             />
             <span className="text-sm text-muted-foreground">ml / day</span>
@@ -1616,7 +1616,7 @@ function SettingsPage({
             type="text"
             value={snoozes}
             onChange={(e) => setSnoozes(e.target.value)}
-            className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+            className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
             style={{ fontFamily: "Inter, sans-serif" }}
           />
         </div>
