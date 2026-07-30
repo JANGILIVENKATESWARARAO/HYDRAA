@@ -1485,7 +1485,7 @@ function SettingsPage({
               type="number"
               value={goal}
               onChange={(e) => setGoal(Number(e.target.value))}
-              className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+              className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
               style={{ fontFamily: "Inter, sans-serif" }}
             />
             <span className="text-sm text-muted-foreground">ml / day</span>
@@ -1532,7 +1532,7 @@ function SettingsPage({
             type="text"
             value={snoozes}
             onChange={(e) => setSnoozes(e.target.value)}
-            className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+            className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
             style={{ fontFamily: "Inter, sans-serif" }}
           />
         </div>
@@ -1952,6 +1952,10 @@ export default function App() {
     pausedRemaining: number | null;
   } | null>(null);
   const [countdown, setCountdown] = useState("");
+  const [nextReminderEndsAt, setNextReminderEndsAt] = useState<number | null>(
+    null,
+  );
+  const [nextReminderCountdown, setNextReminderCountdown] = useState("");
   const reminderRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const snoozeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -2176,6 +2180,28 @@ export default function App() {
   const isHydratingFromExcelRef = useRef(true);
 
   useEffect(() => {
+    if (!appState.reminderEnabled || showReminder || snoozeTimer) {
+      setNextReminderCountdown("");
+      return;
+    }
+
+    const update = () => {
+      if (!nextReminderEndsAt) {
+        setNextReminderCountdown("");
+        return;
+      }
+      const rem = Math.max(0, nextReminderEndsAt - Date.now());
+      const mm = Math.floor(rem / 60000);
+      const ss = Math.floor((rem % 60000) / 1000);
+      setNextReminderCountdown(`${mm}:${String(ss).padStart(2, "0")}`);
+    };
+
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [appState.reminderEnabled, nextReminderEndsAt, showReminder, snoozeTimer]);
+
+  useEffect(() => {
     if (isHydratingFromExcelRef.current) {
       return;
     }
@@ -2186,9 +2212,11 @@ export default function App() {
   const scheduleReminder = useCallback(
     (ms: number) => {
       if (reminderRef.current) clearTimeout(reminderRef.current);
+      setNextReminderEndsAt(Date.now() + ms);
       reminderRef.current = setTimeout(() => {
         const s = appStateRef.current;
         if (!s.reminderEnabled) return;
+        setNextReminderEndsAt(null);
         setShowReminder(true);
         // setAppState((s) => {
         //   const today = new Date().toISOString().slice(0, 10);
@@ -2212,7 +2240,11 @@ export default function App() {
   useEffect(() => {
     if (appState.reminderEnabled)
       scheduleReminder(appState.reminderInterval * 60000);
-    else if (reminderRef.current) clearTimeout(reminderRef.current);
+    else if (reminderRef.current) {
+      clearTimeout(reminderRef.current);
+      setNextReminderEndsAt(null);
+      setNextReminderCountdown("");
+    }
     return () => {
       if (reminderRef.current) clearTimeout(reminderRef.current);
     };
@@ -2587,12 +2619,12 @@ export default function App() {
           {/* Snooze countdown widget */}
           <div className="flex items-center gap-2">
             {snoozeTimer ? (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted border border-border">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border border-border">
                 <Bell className="w-3.5 h-3.5 text-primary shrink-0" />
-                <span className="text-xs text-muted-foreground hidden sm:inline">
+                <span className="text-xs text-foreground hidden sm:inline">
                   Next reminder
                 </span>
-                <Num className="text-sm font-semibold text-foreground tabular-nums">
+                <Num className="text-sm font-semibold text-black tabular-nums">
                   {countdown}
                 </Num>
                 {snoozeTimer.pausedRemaining !== null ? (
@@ -2607,7 +2639,7 @@ export default function App() {
                   <button
                     onClick={handlePauseSnooze}
                     title="Pause snooze"
-                    className="p-1 rounded hover:bg-border transition-colors text-muted-foreground"
+                    className="p-1 rounded hover:bg-border transition-colors text-foreground"
                   >
                     <Pause className="w-3.5 h-3.5" />
                   </button>
@@ -2615,13 +2647,25 @@ export default function App() {
                 <button
                   onClick={handleCancelSnooze}
                   title="Cancel snooze"
-                  className="p-1 rounded hover:bg-border transition-colors text-muted-foreground"
+                  className="p-1 rounded hover:bg-border transition-colors text-foreground"
                 >
                   <X className="w-3 h-3" />
                 </button>
               </div>
             ) : (
-              <div />
+              <div>
+                {appState.reminderEnabled && nextReminderCountdown && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted border border-border">
+                    <Bell className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span className="text-xs text-muted-foreground hidden sm:inline">
+                      Next reminder:
+                    </span>
+                    <Num className="text-sm font-semibold text-black tabular-nums">
+                      {nextReminderCountdown}
+                    </Num>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
