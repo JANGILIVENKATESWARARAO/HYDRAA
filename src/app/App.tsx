@@ -41,6 +41,7 @@ import {
   Trash2,
   ChevronDown,
   Martini,
+  Menu,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
@@ -1931,9 +1932,11 @@ export default function App() {
     null,
   );
   const [nextReminderCountdown, setNextReminderCountdown] = useState("");
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const reminderRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const snoozeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mobileActionsRef = useRef<HTMLDivElement>(null);
   const hydratedRef = useRef(false);
   // const exportQueuedRef = useRef(false);
   const [expandedHistoryDates, setExpandedHistoryDates] = useState<Set<string>>(
@@ -1957,6 +1960,25 @@ export default function App() {
       );
     }, 180);
     return () => clearInterval(id);
+  }, [loadingAction]);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (
+        mobileActionsRef.current &&
+        !mobileActionsRef.current.contains(e.target as Node)
+      ) {
+        setMobileActionsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  useEffect(() => {
+    if (loadingAction) {
+      setMobileActionsOpen(false);
+    }
   }, [loadingAction]);
 
   const fetchGoogleSheetState = useCallback(async () => {
@@ -2590,9 +2612,9 @@ export default function App() {
       {/* ── MAIN AREA ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* topBar */}
-        <header className="shrink-0 bg-card border-b border-border flex flex-col sm:flex-row sm:items-center justify-between px-3 sm:px-6 py-2 sm:py-0 gap-2 sm:gap-3 h-14">
+        <header className="shrink-0 bg-card border-b border-border flex items-center justify-between px-3 sm:px-6 py-2 sm:py-0 gap-2 sm:gap-3 sm:h-14">
           {/* Snooze countdown widget */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {snoozeTimer ? (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border border-border">
                 <Bell className="w-3.5 h-3.5 text-primary shrink-0" />
@@ -2628,7 +2650,7 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              <div>
+              <div className="min-w-0">
                 {appState.reminderEnabled && nextReminderCountdown && (
                   <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted border border-border">
                     <Bell className="w-3.5 h-3.5 text-primary shrink-0" />
@@ -2644,7 +2666,7 @@ export default function App() {
             )}
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="hidden sm:flex items-center gap-2 flex-wrap justify-end">
             <button
               onClick={() => setShowRecord(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
@@ -2683,6 +2705,70 @@ export default function App() {
             >
               <Bell className="w-4 h-4 text-muted-foreground" />
             </button>
+          </div>
+
+          <div
+            className="sm:hidden flex items-center shrink-0"
+            ref={mobileActionsRef}
+          >
+            <div className="relative">
+              <button
+                onClick={() => setMobileActionsOpen((v) => !v)}
+                className="p-2 rounded-lg border border-border hover:bg-muted transition-colors"
+                title="Actions"
+              >
+                <Menu className="w-4 h-4 text-muted-foreground" />
+              </button>
+
+              {mobileActionsOpen && (
+                <div className="absolute right-0 mt-2 w-52 bg-card border border-border rounded-lg shadow-xl z-50 overflow-hidden">
+                  <button
+                    onClick={() => {
+                      setShowRecord(true);
+                      setMobileActionsOpen(false);
+                    }}
+                    className="w-full px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted flex items-center gap-2"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Record Drink
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleBackup();
+                      setMobileActionsOpen(false);
+                    }}
+                    disabled={!!loadingAction}
+                    className="w-full px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted flex items-center gap-2 disabled:opacity-60"
+                  >
+                    <ClipboardList className="w-3.5 h-3.5" />
+                    {loadingAction === "backup" ? "Backing up..." : "Backup"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleDownload();
+                      setMobileActionsOpen(false);
+                    }}
+                    disabled={!!loadingAction}
+                    className="w-full px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted flex items-center gap-2 disabled:opacity-60"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    {loadingAction === "export"
+                      ? "Exporting..."
+                      : dlFlash
+                        ? "Exported ✓"
+                        : "Export"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowReminder(true);
+                      setMobileActionsOpen(false);
+                    }}
+                    className="w-full px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted flex items-center gap-2"
+                  >
+                    <Bell className="w-3.5 h-3.5" /> Preview reminder
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
