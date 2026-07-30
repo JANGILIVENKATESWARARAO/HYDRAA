@@ -777,7 +777,7 @@ function DrinkDot({ type, isDark }: { type: DrinkType; isDark: boolean }) {
 
 // ─── Chart tooltip ────────────────────────────────────────────────────────────
 
-function ChartTooltip({ active, payload, label }: any) {
+function ChartTooltip({ active, payload, label, isDark }: any) {
   if (!active || !payload?.length) return null;
   const total = payload.reduce((s: number, p: any) => s + (p.value || 0), 0);
   return (
@@ -791,10 +791,20 @@ function ChartTooltip({ active, payload, label }: any) {
             className="flex items-center justify-between gap-3 mb-1"
           >
             <span className="flex items-center gap-1.5 text-muted-foreground">
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ background: p.fill }}
-              />
+              {(() => {
+                const drinkType = p.dataKey as DrinkType;
+                const markerColor = DRINKS[drinkType]
+                  ? isDark
+                    ? DRINKS[drinkType].colorDark
+                    : DRINKS[drinkType].colorLight
+                  : p.stroke || p.fill;
+                return (
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{ background: markerColor }}
+                  />
+                );
+              })()}
               {DRINKS[p.dataKey as DrinkType]?.label}
             </span>
             <Num className="text-foreground font-medium">{p.value}ml</Num>
@@ -876,7 +886,10 @@ function DrinkAreaChart({
           unit="ml"
           width={52}
         />
-        <Tooltip content={<ChartTooltip />} cursor={{ fill: hoverFill }} />
+        <Tooltip
+          content={<ChartTooltip isDark={isDark} />}
+          cursor={{ fill: hoverFill }}
+        />
         {goalLine && (
           <ReferenceLine
             y={goalLine}
@@ -956,7 +969,7 @@ function DrinkGroupedBarChart({
           width={52}
         />
         <Tooltip
-          content={<ChartTooltip />}
+          content={<ChartTooltip isDark={isDark} />}
           cursor={{
             fill: hoverFill,
           }}
@@ -1028,7 +1041,7 @@ function DrinkLineChart({
           unit="ml"
           width={52}
         />
-        <Tooltip content={<ChartTooltip />} />
+        <Tooltip content={<ChartTooltip isDark={isDark} />} />
         {activeDrinks.map((dt) => {
           const color = isDark ? DRINKS[dt].colorDark : DRINKS[dt].colorLight;
           return (
