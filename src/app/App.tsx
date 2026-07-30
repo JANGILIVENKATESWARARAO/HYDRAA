@@ -361,6 +361,24 @@ function normalizeTime(value: unknown): string {
   return trimmed;
 }
 
+function ensureUniqueRecordIds(records: HydrationRecord[]): HydrationRecord[] {
+  const seen = new Map<string, number>();
+
+  return records.map((record) => {
+    const baseId = String(record.id || record.timestamp);
+    const count = seen.get(baseId) ?? 0;
+    seen.set(baseId, count + 1);
+
+    const nextId = count === 0 ? baseId : `${baseId}-${count + 1}`;
+    if (nextId === record.id) return record;
+
+    return {
+      ...record,
+      id: nextId,
+    };
+  });
+}
+
 function normalizeSheetState(state: any): AppState {
   const normalized = mergeDefaults(state);
   normalized.soundChoice = normalizeSoundChoice(normalized.soundChoice);
@@ -370,33 +388,35 @@ function normalizeSheetState(state: any): AppState {
   );
 
   normalized.records = Array.isArray(state?.records)
-    ? state.records
-        .map((record: any, index: number) => {
-          const date = normalizeDate(record?.date);
-          const time = normalizeTime(record?.time);
-          const timestamp = Number(record?.timestamp) || Date.now() + index;
+    ? ensureUniqueRecordIds(
+        state.records
+          .map((record: any, index: number) => {
+            const date = normalizeDate(record?.date);
+            const time = normalizeTime(record?.time);
+            const timestamp = Number(record?.timestamp) || Date.now() + index;
 
-          return {
-            ...record,
-            id: record?.id ? String(record.id) : String(timestamp),
-            date: date || normalizeDate(new Date(timestamp).toString()),
-            time: time || normalizeTime(new Date(timestamp).toTimeString()),
-            timestamp,
-            amount: Number(record?.amount) || 0,
-            drinkType:
-              typeof record?.drinkType === "string" && record.drinkType
-                ? record.drinkType
-                : "water",
-            type:
-              record?.type === "snooze" || record?.type === "skip"
-                ? record.type
-                : "drink",
-            source: record?.source === "reminder" ? "reminder" : "manual",
-            snoozeDuration: Number(record?.snoozeDuration) || undefined,
-            dailyWaterTotal: Number(record?.dailyWaterTotal) || 0,
-          };
-        })
-        .sort((a, b) => b.timestamp - a.timestamp)
+            return {
+              ...record,
+              id: record?.id ? String(record.id) : String(timestamp),
+              date: date || normalizeDate(new Date(timestamp).toString()),
+              time: time || normalizeTime(new Date(timestamp).toTimeString()),
+              timestamp,
+              amount: Number(record?.amount) || 0,
+              drinkType:
+                typeof record?.drinkType === "string" && record.drinkType
+                  ? record.drinkType
+                  : "water",
+              type:
+                record?.type === "snooze" || record?.type === "skip"
+                  ? record.type
+                  : "drink",
+              source: record?.source === "reminder" ? "reminder" : "manual",
+              snoozeDuration: Number(record?.snoozeDuration) || undefined,
+              dailyWaterTotal: Number(record?.dailyWaterTotal) || 0,
+            };
+          })
+          .sort((a, b) => b.timestamp - a.timestamp),
+      )
     : [];
 
   normalized.dailyGoals = Array.isArray(state?.dailyGoals)
@@ -1917,6 +1937,8 @@ export default function App() {
     "backup" | "export" | "settings" | null
   >(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [autoBackupLoading, setAutoBackupLoading] = useState(false);
+  const [autoBackupProgress, setAutoBackupProgress] = useState(0);
   const [editingRecord, setEditingRecord] = useState<HydrationRecord | null>(
     null,
   );
@@ -1937,6 +1959,8 @@ export default function App() {
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mobileActionsRef = useRef<HTMLDivElement>(null);
   const hydratedRef = useRef(false);
+  const autoBackupInFlightRef = useRef(false);
+  const pendingAutoBackupStateRef = useRef<AppState | null>(null);
   // const exportQueuedRef = useRef(false);
   const [expandedHistoryDates, setExpandedHistoryDates] = useState<Set<string>>(
     new Set([todayStr()]),
@@ -1946,6 +1970,22 @@ export default function App() {
   useEffect(() => {
     appStateRef.current = appState;
   }, [appState]);
+
+  useEffect(() => {
+    const uniqueRecords = ensureUniqueRecordIds(appState.records);
+    const changed = uniqueRecords.some((record, index) => {
+      return record.id !== appState.records[index]?.id;
+    });
+
+    if (!changed) return;
+
+    const nextState: AppState = {
+      ...appStateRef.current,
+      records: uniqueRecords,
+    };
+    appStateRef.current = nextState;
+    setAppState(nextState);
+  }, [appState.records]);
 
   useEffect(() => {
     if (!loadingAction) {
@@ -1960,6 +2000,20 @@ export default function App() {
     }, 180);
     return () => clearInterval(id);
   }, [loadingAction]);
+
+  useEffect(() => {
+    if (!autoBackupLoading) {
+      setAutoBackupProgress(0);
+      return;
+    }
+    setAutoBackupProgress(14);
+    const id = setInterval(() => {
+      setAutoBackupProgress((prev) =>
+        Math.min(prev + Math.max((95 - prev) * 0.12, 2), 95),
+      );
+    }, 180);
+    return () => clearInterval(id);
+  }, [autoBackupLoading]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -2055,6 +2109,14 @@ export default function App() {
     }, 250);
   }
 
+  function finishAutoBackupLoading() {
+    setAutoBackupProgress(100);
+    setTimeout(() => {
+      setAutoBackupLoading(false);
+      setAutoBackupProgress(0);
+    }, 250);
+  }
+
   async function saveStateToGoogleSheet(
     stateToSave: AppState,
     themeToSave: ThemeMode,
@@ -2097,6 +2159,35 @@ export default function App() {
 
     setAppState(stateToSave);
     setMode(themeToSave);
+  }
+
+  async function runAutoBackup(
+    stateSnapshot: AppState,
+    successMessage = "Backup saved to Google Sheet.",
+  ) {
+    pendingAutoBackupStateRef.current = stateSnapshot;
+    if (autoBackupInFlightRef.current) return;
+
+    setAutoBackupLoading(true);
+    autoBackupInFlightRef.current = true;
+    let didSave = false;
+    try {
+      while (pendingAutoBackupStateRef.current) {
+        const nextSnapshot = pendingAutoBackupStateRef.current;
+        pendingAutoBackupStateRef.current = null;
+        await saveStateToGoogleSheet(nextSnapshot, mode);
+        didSave = true;
+      }
+      if (didSave) {
+        toast.success(successMessage);
+      }
+    } catch (error) {
+      console.error("Auto backup failed:", error);
+      toast.error("Auto backup failed. You can use Backup manually.");
+    } finally {
+      autoBackupInFlightRef.current = false;
+      finishAutoBackupLoading();
+    }
   }
 
   // Load application state from Google Sheet.
@@ -2249,7 +2340,7 @@ export default function App() {
   // ── record helpers ────────────────────────────────────────────────────────
 
   function computeWaterTotal(date: string, amount: number, dt: DrinkType) {
-    const prev = appState.records
+    const prev = appStateRef.current.records
       .filter(
         (r) => r.date === date && r.type === "drink" && r.drinkType === "water",
       )
@@ -2267,11 +2358,16 @@ export default function App() {
       dailyWaterTotal: water,
       ...patch,
     };
-    setAppState((s) => ({
-      ...s,
-      records: [...s.records, record].sort((a, b) => b.timestamp - a.timestamp),
-    }));
-    // queueExport();
+    const current = appStateRef.current;
+    const nextState: AppState = {
+      ...current,
+      records: [...current.records, record].sort(
+        (a, b) => b.timestamp - a.timestamp,
+      ),
+    };
+    appStateRef.current = nextState;
+    setAppState(nextState);
+    return nextState;
   }
 
   function clearSnoozeTimer() {
@@ -2285,7 +2381,7 @@ export default function App() {
   function handleReminderDrink(ml: number) {
     const ts = Date.now();
     const { date, time } = extractParts(ts);
-    addRecord({
+    const nextState = addRecord({
       date,
       time,
       timestamp: ts,
@@ -2294,6 +2390,7 @@ export default function App() {
       type: "drink",
       source: "reminder",
     });
+    void runAutoBackup(nextState);
     clearSnoozeTimer();
     setShowReminder(false);
     scheduleReminder(appState.reminderInterval * 60000);
@@ -2309,7 +2406,7 @@ export default function App() {
     timestamp: number;
   }) {
     const { date, time } = extractParts(timestamp);
-    addRecord({
+    const nextState = addRecord({
       date,
       time,
       timestamp,
@@ -2338,6 +2435,8 @@ export default function App() {
     if (appStateRef.current.reminderEnabled) {
       scheduleReminder(appStateRef.current.reminderInterval * 60000);
     }
+
+    void runAutoBackup(nextState);
   }
 
   function handleUpdateRecord({
@@ -2351,7 +2450,7 @@ export default function App() {
   }) {
     if (!editingRecord) return;
     const { date, time } = extractParts(timestamp);
-    const waterExcludingSelf = appState.records
+    const waterExcludingSelf = appStateRef.current.records
       .filter(
         (r) =>
           r.date === date &&
@@ -2371,22 +2470,28 @@ export default function App() {
       drinkType,
       dailyWaterTotal,
     };
-    setAppState((s) => ({
-      ...s,
-      records: s.records
+    const current = appStateRef.current;
+    const nextState: AppState = {
+      ...current,
+      records: current.records
         .map((r) => (r.id === editingRecord.id ? updated : r))
         .sort((a, b) => b.timestamp - a.timestamp),
-    }));
-    // queueExport();
+    };
+    appStateRef.current = nextState;
+    setAppState(nextState);
+    void runAutoBackup(nextState, "Record modified and saved to Google Sheet.");
     setEditingRecord(null);
   }
 
   function handleDeleteRecord(id: string) {
-    setAppState((s) => ({
-      ...s,
-      records: s.records.filter((r) => r.id !== id),
-    }));
-    // queueExport();
+    const current = appStateRef.current;
+    const nextState: AppState = {
+      ...current,
+      records: current.records.filter((r) => r.id !== id),
+    };
+    appStateRef.current = nextState;
+    setAppState(nextState);
+    void runAutoBackup(nextState, "Record deleted and saved to Google Sheet.");
     setDeletingId(null);
   }
 
@@ -2620,6 +2725,14 @@ export default function App() {
           />
         </div>
       )}
+      {autoBackupLoading && !loadingAction && (
+        <div className="fixed left-0 top-0 z-[99] h-1 w-full bg-primary/15">
+          <div
+            className="h-full bg-primary transition-[width] duration-150 ease-out"
+            style={{ width: `${autoBackupProgress}%` }}
+          />
+        </div>
+      )}
       {/* ── SIDEBAR ── */}
       <Sidebar
         activeTab={activeTab}
@@ -2820,9 +2933,17 @@ export default function App() {
                       />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <Num>{Math.round(todayGoalPct)}% of daily goal</Num>
                       <Num>
-                        {Math.max(todayGoal - todayTotal, 0)} ml remaining
+                        <span className="font-semibold text-foreground">
+                          {Math.round(todayGoalPct)}%
+                        </span>{" "}
+                        of daily goal
+                      </Num>
+                      <Num>
+                        <span className="font-semibold text-foreground">
+                          {Math.max(todayGoal - todayTotal, 0)} ml
+                        </span>{" "}
+                        remaining
                       </Num>
                     </div>
                   </div>
