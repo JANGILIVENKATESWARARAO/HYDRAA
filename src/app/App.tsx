@@ -1870,37 +1870,12 @@ function Sidebar({
         {collapsed ? (
           <div className="relative flex justify-center">
             <button
-              onClick={() => setThemeOpen((o) => !o)}
-              title="Theme"
+              onClick={() => setMode(mode === "light" ? "dark" : "light")}
+              title={`Switch to ${mode === "light" ? "dark" : "light"} theme`}
               className="p-2.5 rounded-lg transition-colors text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               <CurrentIcon className="w-4 h-4" />
             </button>
-            {themeOpen && (
-              <div
-                className="absolute bottom-0 left-full ml-2 bg-card border border-border rounded-lg shadow-xl overflow-hidden z-50"
-                style={{ minWidth: 130 }}
-              >
-                {THEME_OPTS.map(({ key, label, Icon }) => (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      setMode(key);
-                      setThemeOpen(false);
-                    }}
-                    className={[
-                      "w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-muted",
-                      mode === key
-                        ? "text-primary font-semibold"
-                        : "text-foreground",
-                    ].join(" ")}
-                  >
-                    <Icon className="w-3.5 h-3.5 shrink-0" />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         ) : (
           <div>
