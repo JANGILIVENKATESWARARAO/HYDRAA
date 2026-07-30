@@ -1481,15 +1481,17 @@ function SettingsPage({
           <label className="block text-sm font-medium text-foreground mb-2">
             Today's Water Goal
           </label>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <input
               type="number"
               value={goal}
               onChange={(e) => setGoal(Number(e.target.value))}
-              className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
+              className="w-full sm:flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
               style={{ fontFamily: "Inter, sans-serif" }}
             />
-            <span className="text-sm text-muted-foreground">ml / day</span>
+            <span className="text-sm text-muted-foreground sm:shrink-0">
+              ml / day
+            </span>
           </div>
         </div>
 
@@ -1498,7 +1500,7 @@ function SettingsPage({
           <label className="block text-sm font-medium text-foreground mb-3">
             Reminder Interval
           </label>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[15, 30, 45, 60].map((v) => (
               <button
                 key={v}
@@ -1559,14 +1561,14 @@ function SettingsPage({
         </p>
         <div className="bg-card border border-border rounded-xl divide-y divide-border">
           {/* Sound enabled toggle */}
-          <div className="px-5 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
+          <div className="px-5 py-4 flex items-start sm:items-center justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-2.5 min-w-0">
               {soundEnabled ? (
                 <Volume2 className="w-4 h-4 text-primary" />
               ) : (
                 <VolumeX className="w-4 h-4 text-muted-foreground" />
               )}
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground">
                   Play Sound on Reminder
                 </p>
@@ -1586,7 +1588,7 @@ function SettingsPage({
             <label className="block text-sm font-medium text-foreground mb-2.5">
               Sound
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {SOUND_OPTIONS.map((s) => {
                 const active = soundChoice === s.id;
                 return (
@@ -1651,7 +1653,7 @@ function SettingsPage({
           </p>
           <div className="bg-card border border-border rounded-xl divide-y divide-border">
             {/* Permission row */}
-            <div className="px-5 py-4 flex items-center justify-between gap-4">
+            <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
               <div className="flex items-center gap-2.5 min-w-0">
                 <Bell className="w-4 h-4 shrink-0 text-primary" />
                 <div className="min-w-0">
@@ -1689,7 +1691,7 @@ function SettingsPage({
             </div>
             {/* Test row — only shown when granted */}
             {notifPerm === "granted" && (
-              <div className="px-5 py-3 flex items-center justify-between">
+              <div className="px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
                   Send a test notification right now
                 </p>
@@ -1726,7 +1728,7 @@ function SettingsPage({
       )}
 
       {/* Test reminder trigger */}
-      <div className="bg-card border border-border rounded-xl px-5 py-4 flex items-center justify-between gap-4">
+      <div className="bg-card border border-border rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <p className="text-sm font-medium text-foreground">
             Test Reminder Popup
@@ -1737,7 +1739,7 @@ function SettingsPage({
         </div>
         <button
           onClick={onTestReminder}
-          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
+          className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
         >
           <Bell className="w-3 h-3" /> Fire Now
         </button>
@@ -1746,7 +1748,7 @@ function SettingsPage({
       <button
         onClick={save}
         disabled={isSaving}
-        className="px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+        className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {isSaving ? "Saving..." : saved ? "Saved ✓" : "Save Changes"}
       </button>
@@ -2589,7 +2591,7 @@ export default function App() {
   return (
     <div
       className={[
-        "flex h-dvh overflow-hidden bg-background font-sans",
+        "flex h-dvh overflow-x-auto overflow-y-hidden bg-background font-sans",
         loadingAction ? "pointer-events-none select-none" : "",
       ].join(" ")}
     >
@@ -2610,7 +2612,7 @@ export default function App() {
       />
 
       {/* ── MAIN AREA ── */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-[320px] sm:min-w-0 overflow-hidden">
         {/* topBar */}
         <header className="shrink-0 bg-card border-b border-border flex items-center justify-between px-3 sm:px-6 py-2 sm:py-0 gap-2 sm:gap-3 sm:h-14">
           {/* Snooze countdown widget */}
@@ -3119,7 +3121,7 @@ export default function App() {
                                   }
                                   const label =
                                     r.type === "snooze"
-                                      ? `Snoozed${r.snoozeDuration ? ` ${r.snoozeDuration}m` : ""}`
+                                      ? `Snoozed${r.snoozeDuration ? ` ${Number(r.snoozeDuration).toFixed(2)}m` : ""}`
                                       : "Skipped";
                                   return (
                                     <div
