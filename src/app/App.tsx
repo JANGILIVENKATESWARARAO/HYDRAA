@@ -1867,7 +1867,7 @@ function Sidebar({
                 collapsed ? "justify-center px-0" : "px-2.5",
                 active
                   ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
               ].join(" ")}
               style={{ gap: collapsed ? 0 : 10 }}
             >
@@ -1909,7 +1909,7 @@ function Sidebar({
                     "flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors duration-150",
                     mode === key
                       ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      : "text-muted-foreground hover:bg-muted hover:text-primary",
                   ].join(" ")}
                 >
                   <Icon className="w-3.5 h-3.5" />
