@@ -1421,7 +1421,7 @@ function RecordDrinkModal({
                   setCustom(e.target.value);
                   setPreset(null);
                 }}
-                className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
+                className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary transition-colors"
                 style={{ fontFamily: "Inter, sans-serif" }}
               />
               <span className="text-sm text-muted-foreground shrink-0">ml</span>
@@ -1437,7 +1437,7 @@ function RecordDrinkModal({
               type="datetime-local"
               value={datetime}
               onChange={(e) => setDatetime(e.target.value)}
-              className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
+              className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary transition-colors"
               style={{ fontFamily: "Inter, sans-serif" }}
             />
             <p className="text-xs text-muted-foreground mt-1.5">
@@ -2765,7 +2765,7 @@ export default function App() {
   function handleSnooze(min: number) {
     const ts = Date.now();
     const { date, time } = extractParts(ts);
-    addRecord({
+    const nextState = addRecord({
       date,
       time,
       timestamp: ts,
@@ -2775,6 +2775,7 @@ export default function App() {
       source: "reminder",
       snoozeDuration: min,
     });
+    void runAutoBackup(nextState, "Snooze recorded and saved to Google Sheet.");
     setShowReminder(false);
     if (snoozeRef.current) clearTimeout(snoozeRef.current);
     const ms = min * 60000;
@@ -2813,7 +2814,7 @@ export default function App() {
   function handleSkip() {
     const ts = Date.now();
     const { date, time } = extractParts(ts);
-    addRecord({
+    const nextState = addRecord({
       date,
       time,
       timestamp: ts,
@@ -2822,6 +2823,10 @@ export default function App() {
       type: "skip",
       source: "reminder",
     });
+    void runAutoBackup(
+      nextState,
+      "Reminder skipped and saved to Google Sheet.",
+    );
     clearSnoozeTimer();
     setShowReminder(false);
     scheduleReminder(appState.reminderInterval * 60000);
@@ -3307,7 +3312,7 @@ export default function App() {
                         <p className="text-xs text-muted-foreground mb-0.5">
                           {l}
                         </p>
-                        <Num className="text-sm font-semibold text-foreground">
+                        <Num className="text-sm font-semibold text-black">
                           {v}
                         </Num>
                       </div>
