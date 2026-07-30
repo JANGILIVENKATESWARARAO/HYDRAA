@@ -824,6 +824,7 @@ function DrinkAreaChart({
 }) {
   const tickColor = isDark ? "#5F5F5F" : "#7C7C7C";
   const gridColor = isDark ? "#FFFFFF0D" : "#0000000D";
+  const hoverFill = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
   const activeDrinks = DRINK_KEYS.filter((dt) => data.some((d) => d[dt] > 0));
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -875,7 +876,7 @@ function DrinkAreaChart({
           unit="ml"
           width={52}
         />
-        <Tooltip content={<ChartTooltip />} />
+        <Tooltip content={<ChartTooltip />} cursor={{ fill: hoverFill }} />
         {goalLine && (
           <ReferenceLine
             y={goalLine}
@@ -918,6 +919,7 @@ function DrinkGroupedBarChart({
 }) {
   const tickColor = isDark ? "#5F5F5F" : "#7C7C7C";
   const gridColor = isDark ? "#FFFFFF0D" : "#0000000D";
+  const hoverFill = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
   const activeDrinks = DRINK_KEYS.filter((dt) => data.some((d) => d[dt] > 0));
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -956,7 +958,7 @@ function DrinkGroupedBarChart({
         <Tooltip
           content={<ChartTooltip />}
           cursor={{
-            fill: isDark ? "#38bdf8" : "#0284c7",
+            fill: hoverFill,
           }}
         />
         {goalLine && (
