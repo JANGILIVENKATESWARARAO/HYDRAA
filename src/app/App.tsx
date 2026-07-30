@@ -886,7 +886,7 @@ function DrinkAreaChart({
         )}
         {DRINK_KEYS.map((dt) => {
           const color = isDark ? DRINKS[dt].colorDark : DRINKS[dt].colorLight;
-          const isLast = activeDrinks[activeDrinks.length - 1] === dt;
+          const isActive = activeDrinks.includes(dt);
           return (
             <Area
               key={`area-${dt}`}
@@ -894,7 +894,7 @@ function DrinkAreaChart({
               dataKey={dt}
               stackId="a"
               stroke={color}
-              strokeWidth={isLast ? 1.5 : 0}
+              strokeWidth={isActive ? 1.5 : 0}
               fill={`url(#grad-${dt})`}
             />
           );
@@ -1476,7 +1476,8 @@ function SettingsPage({
   onTestReminder: () => void;
   isSaving: boolean;
 }) {
-  const [goal, setGoal] = useState(state.dailyGoal);
+  const today = todayStr();
+  const [goal, setGoal] = useState(getGoalForDate(state, today));
   const [interval, setIntervalVal] = useState(state.reminderInterval);
   const [snoozes, setSnoozes] = useState(state.snoozeDurations.join(", "));
   const [enabled, setEnabled] = useState(state.reminderEnabled);
@@ -1487,6 +1488,10 @@ function SettingsPage({
   const [notifPerm, setNotifPerm] = useState<NotificationPermission>(
     "Notification" in window ? Notification.permission : "denied",
   );
+
+  useEffect(() => {
+    setGoal(getGoalForDate(state, today));
+  }, [state.dailyGoals, state.dailyGoal, today]);
 
   async function save() {
     if (isSaving) return;
@@ -1542,7 +1547,7 @@ function SettingsPage({
         {/* Goal */}
         <div className="px-5 py-4">
           <label className="block text-sm font-medium text-foreground mb-2">
-            Daily Water Goal
+            Today's Water Goal
           </label>
           <div className="flex items-center gap-3">
             <input
@@ -2515,11 +2520,12 @@ export default function App() {
     try {
       const current = appStateRef.current;
       const today = todayStr();
-      const next: AppState = { ...current, ...p };
+      const { dailyGoal: todayGoalInput, ...rest } = p;
+      const next: AppState = { ...current, ...rest };
 
-      if (p.dailyGoal !== undefined && p.dailyGoal !== current.dailyGoal) {
+      if (todayGoalInput !== undefined) {
         const existing = next.dailyGoals.filter((g) => g.date !== today);
-        next.dailyGoals = [...existing, { date: today, goal: p.dailyGoal }];
+        next.dailyGoals = [...existing, { date: today, goal: todayGoalInput }];
       }
 
       setAppState(next);
@@ -2565,7 +2571,9 @@ export default function App() {
   const timeSinceLast = lastDrink
     ? formatAgo(Date.now() - lastDrink.timestamp)
     : "—";
-  const pct = Math.min((todayWater / todayGoal) * 100, 100);
+  const pct = todayGoal > 0 ? Math.min((todayWater / todayGoal) * 100, 100) : 0;
+  const todayGoalPct =
+    todayGoal > 0 ? Math.min((todayTotal / todayGoal) * 100, 100) : 0;
   const reminderRecs = todayRecs.filter((r) => r.source === "reminder");
   const todayByType = DRINK_KEYS.map((dt) => ({
     dt,
@@ -2737,17 +2745,12 @@ export default function App() {
                       <div
                         className="h-full rounded-full bg-primary transition-all duration-500"
                         style={{
-                          width: `${Math.min((todayTotal / todayGoal) * 100, 100)}%`,
+                          width: `${todayGoalPct}%`,
                         }}
                       />
                     </div>
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <Num>
-                        {Math.round(
-                          Math.min((todayTotal / todayGoal) * 100, 100),
-                        )}
-                        % of daily goal
-                      </Num>
+                      <Num>{Math.round(todayGoalPct)}% of daily goal</Num>
                       <Num>
                         {Math.max(todayGoal - todayTotal, 0)} ml remaining
                       </Num>
