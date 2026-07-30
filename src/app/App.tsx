@@ -2321,6 +2321,26 @@ export default function App() {
       type: "drink",
       source: "manual",
     });
+
+    if (snoozeTimer) {
+      const skipTs = Date.now();
+      const skipParts = extractParts(skipTs);
+      addRecord({
+        date: skipParts.date,
+        time: skipParts.time,
+        timestamp: skipTs,
+        amount: 0,
+        drinkType: "water",
+        type: "skip",
+        source: "manual",
+      });
+      clearSnoozeTimer();
+      toast.info("Snooze stopped after manual drink.");
+    }
+
+    if (appStateRef.current.reminderEnabled) {
+      scheduleReminder(appStateRef.current.reminderInterval * 60000);
+    }
   }
 
   function handleUpdateRecord({
