@@ -184,14 +184,65 @@ function getNotificationIconUrl() {
   return `${window.location.origin}/favicon.ico`;
 }
 
+const DEFAULT_NOTIFICATION_DRINK_AMOUNT = 100;
+const DEFAULT_NOTIFICATION_SNOOZE_MINUTES = 10;
+
+function normalizeNotificationQuickDrinkAmount(value: unknown): number {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n) || n <= 0) {
+    return DEFAULT_NOTIFICATION_DRINK_AMOUNT;
+  }
+  return Math.min(n, 2000);
+}
+
+function normalizeNotificationQuickSnoozeMinutes(value: unknown): number {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n) || n <= 0) {
+    return DEFAULT_NOTIFICATION_SNOOZE_MINUTES;
+  }
+  return Math.min(n, 240);
+}
+
+type ReminderNotificationAction =
+  | "hydraa-open-reminder"
+  | "hydraa-skip"
+  | `hydraa-drink-${number}`
+  | `hydraa-snooze-${number}`;
+
+const REMINDER_NOTIFICATION_EVENT = "hydraa:notification-action";
+
+function getReminderNotificationActions(
+  drinkAmount: number,
+  snoozeMinutes: number,
+): NotificationAction[] {
+  return [
+    {
+      action: `hydraa-drink-${drinkAmount}`,
+      title: `Drink ${drinkAmount} ml`,
+    },
+    {
+      action: `hydraa-snooze-${snoozeMinutes}`,
+      title: `Snooze ${snoozeMinutes}m`,
+    },
+    { action: "hydraa-skip", title: "Skip" },
+  ];
+}
+
 async function sendOsNotification({
   title,
   body,
   tagPrefix,
+  allowReminderActions = false,
+  reminderActionSettings,
 }: {
   title: string;
   body: string;
   tagPrefix: string;
+  allowReminderActions?: boolean;
+  reminderActionSettings?: {
+    drinkAmount: number;
+    snoozeMinutes: number;
+  };
 }) {
   if (!("Notification" in window) || Notification.permission !== "granted") {
     return;
@@ -199,6 +250,12 @@ async function sendOsNotification({
 
   const notificationId = `${tagPrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const icon = getNotificationIconUrl();
+  const drinkAmount = normalizeNotificationQuickDrinkAmount(
+    reminderActionSettings?.drinkAmount,
+  );
+  const snoozeMinutes = normalizeNotificationQuickSnoozeMinutes(
+    reminderActionSettings?.snoozeMinutes,
+  );
 
   // 1) Preferred path for browsers that support SW notifications.
   try {
@@ -209,6 +266,15 @@ async function sendOsNotification({
           body,
           icon,
           tag: notificationId,
+          requireInteraction: true,
+          renotify: true,
+          data: {
+            kind: "hydraa-reminder",
+            action: "hydraa-open-reminder",
+          },
+          actions: allowReminderActions
+            ? getReminderNotificationActions(drinkAmount, snoozeMinutes)
+            : [],
         });
         return;
       }
@@ -223,7 +289,20 @@ async function sendOsNotification({
       body,
       icon,
       tag: notificationId,
+      requireInteraction: true,
     });
+
+    notification.onclick = () => {
+      window.focus();
+      window.dispatchEvent(
+        new CustomEvent(REMINDER_NOTIFICATION_EVENT, {
+          detail: {
+            action: "hydraa-open-reminder" as ReminderNotificationAction,
+          },
+        }),
+      );
+      notification.close();
+    };
 
     // Prevent an endless pile-up while still allowing repeated alerts.
     setTimeout(() => notification.close(), 15000);
@@ -232,7 +311,14 @@ async function sendOsNotification({
   }
 }
 
-async function fireNativeNotification(todayWater: number, goal: number) {
+async function fireNativeNotification(
+  todayWater: number,
+  goal: number,
+  reminderActionSettings: {
+    drinkAmount: number;
+    snoozeMinutes: number;
+  },
+) {
   const pct = goal > 0 ? Math.round((todayWater / goal) * 100) : 0;
   const now = new Date();
   const timeStr = now.toLocaleTimeString([], {
@@ -249,6 +335,8 @@ async function fireNativeNotification(todayWater: number, goal: number) {
     title,
     body,
     tagPrefix: "hydraa-reminder",
+    allowReminderActions: true,
+    reminderActionSettings,
   });
 }
 
@@ -337,6 +425,8 @@ interface AppState {
   soundChoice: string;
   soundVolume: number;
   soundEnabled: boolean;
+  notificationQuickDrinkAmount: number;
+  notificationQuickSnoozeMinutes: number;
 }
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
@@ -365,6 +455,8 @@ function getDefaultState(): AppState {
     soundChoice: getDefaultSoundChoice(),
     soundVolume: 0.7,
     soundEnabled: true,
+    notificationQuickDrinkAmount: DEFAULT_NOTIFICATION_DRINK_AMOUNT,
+    notificationQuickSnoozeMinutes: DEFAULT_NOTIFICATION_SNOOZE_MINUTES,
   };
 }
 
@@ -433,6 +525,14 @@ function normalizeSheetState(state: any): AppState {
     0,
     Math.min(1, Number(normalized.soundVolume) || 0.7),
   );
+  normalized.notificationQuickDrinkAmount =
+    normalizeNotificationQuickDrinkAmount(
+      normalized.notificationQuickDrinkAmount,
+    );
+  normalized.notificationQuickSnoozeMinutes =
+    normalizeNotificationQuickSnoozeMinutes(
+      normalized.notificationQuickSnoozeMinutes,
+    );
 
   normalized.records = Array.isArray(state?.records)
     ? ensureUniqueRecordIds(
@@ -1480,6 +1580,10 @@ function SettingsPage({
   );
   const [soundVolume, setSoundVolume] = useState(state.soundVolume ?? 0.7);
   const [soundEnabled, setSoundEnabled] = useState(state.soundEnabled ?? true);
+  const [notificationQuickDrinkAmount, setNotificationQuickDrinkAmount] =
+    useState(state.notificationQuickDrinkAmount);
+  const [notificationQuickSnoozeMinutes, setNotificationQuickSnoozeMinutes] =
+    useState(state.notificationQuickSnoozeMinutes);
   const [saved, setSaved] = useState(false);
   const [notifPerm, setNotifPerm] = useState<NotificationPermission>(
     "Notification" in window ? Notification.permission : "denied",
@@ -1511,6 +1615,12 @@ function SettingsPage({
       soundChoice,
       soundVolume,
       soundEnabled,
+      notificationQuickDrinkAmount: normalizeNotificationQuickDrinkAmount(
+        notificationQuickDrinkAmount,
+      ),
+      notificationQuickSnoozeMinutes: normalizeNotificationQuickSnoozeMinutes(
+        notificationQuickSnoozeMinutes,
+      ),
     });
     if (ok) {
       setSaved(true);
@@ -1756,6 +1866,53 @@ function SettingsPage({
             </span>
           </p>
           <div className="bg-card border border-border rounded-xl divide-y divide-border">
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm font-medium text-foreground">
+                Reminder Quick Actions
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Configure buttons shown in OS notification. Skip is always
+                included.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground">
+                    Drink Amount (ml)
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={notificationQuickDrinkAmount}
+                    onChange={(e) => {
+                      const next = Number(e.target.value);
+                      setNotificationQuickDrinkAmount(
+                        Number.isFinite(next) ? next : 0,
+                      );
+                    }}
+                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
+                    style={{ fontFamily: "Inter, sans-serif" }}
+                  />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground">
+                    Snooze (minutes)
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={notificationQuickSnoozeMinutes}
+                    onChange={(e) => {
+                      const next = Number(e.target.value);
+                      setNotificationQuickSnoozeMinutes(
+                        Number.isFinite(next) ? next : 0,
+                      );
+                    }}
+                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
+                    style={{ fontFamily: "Inter, sans-serif" }}
+                  />
+                </label>
+              </div>
+            </div>
             {/* Permission row */}
             <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -1811,6 +1968,15 @@ function SettingsPage({
                       title: "Time to drink water 💧",
                       body: `Test notification · ${timeStr}`,
                       tagPrefix: "hydraa-test",
+                      allowReminderActions: true,
+                      reminderActionSettings: {
+                        drinkAmount: normalizeNotificationQuickDrinkAmount(
+                          notificationQuickDrinkAmount,
+                        ),
+                        snoozeMinutes: normalizeNotificationQuickSnoozeMinutes(
+                          notificationQuickSnoozeMinutes,
+                        ),
+                      },
                     });
                   }}
                   className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
@@ -2302,6 +2468,18 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !window.isSecureContext) {
+      return;
+    }
+
+    navigator.serviceWorker
+      .register("/hydraa-sw.js")
+      .catch((error) =>
+        console.warn("Service worker registration failed:", error),
+      );
+  }, []);
+
   // Live countdown ticker for snooze timer
   useEffect(() => {
     if (countdownRef.current) {
@@ -2392,7 +2570,10 @@ export default function App() {
       )
       .reduce((sum, r) => sum + r.amount, 0);
     const goal = getGoalForDate(s, todayDate);
-    void fireNativeNotification(todayWaterAmount, goal);
+    void fireNativeNotification(todayWaterAmount, goal, {
+      drinkAmount: s.notificationQuickDrinkAmount,
+      snoozeMinutes: s.notificationQuickSnoozeMinutes,
+    });
     setShowReminder(true);
   }
 
@@ -2646,6 +2827,82 @@ export default function App() {
     scheduleReminder(appState.reminderInterval * 60000);
     // queueExport();
   }
+
+  const handleReminderNotificationAction = useCallback(
+    (rawAction: string | undefined) => {
+      const action = (rawAction ??
+        "hydraa-open-reminder") as ReminderNotificationAction;
+
+      if (action.startsWith("hydraa-drink-")) {
+        const amount = normalizeNotificationQuickDrinkAmount(
+          Number(action.replace("hydraa-drink-", "")),
+        );
+        handleReminderDrink(amount);
+        toast.success(`Recorded ${amount} ml from reminder notification.`);
+        return;
+      }
+
+      if (action.startsWith("hydraa-snooze-")) {
+        const minutes = normalizeNotificationQuickSnoozeMinutes(
+          Number(action.replace("hydraa-snooze-", "")),
+        );
+        handleSnooze(minutes);
+        toast.info(`Reminder snoozed for ${minutes} minutes.`);
+        return;
+      }
+
+      if (action === "hydraa-skip") {
+        handleSkip();
+        toast.info("Reminder skipped from notification.");
+        return;
+      }
+
+      setShowReminder(true);
+    },
+    [handleReminderDrink, handleSkip, handleSnooze],
+  );
+
+  useEffect(() => {
+    const onWindowNotificationAction = (event: Event) => {
+      const custom = event as CustomEvent<{ action?: string }>;
+      handleReminderNotificationAction(custom.detail?.action);
+    };
+
+    const onServiceWorkerMessage = (event: MessageEvent) => {
+      const payload = event.data as
+        | { type?: string; action?: string }
+        | undefined;
+      if (!payload || payload.type !== "HYDRAA_NOTIFICATION_ACTION") {
+        return;
+      }
+      handleReminderNotificationAction(payload.action);
+    };
+
+    window.addEventListener(
+      REMINDER_NOTIFICATION_EVENT,
+      onWindowNotificationAction as EventListener,
+    );
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener(
+        "message",
+        onServiceWorkerMessage,
+      );
+    }
+
+    return () => {
+      window.removeEventListener(
+        REMINDER_NOTIFICATION_EVENT,
+        onWindowNotificationAction as EventListener,
+      );
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener(
+          "message",
+          onServiceWorkerMessage,
+        );
+      }
+    };
+  }, [handleReminderNotificationAction]);
 
   async function handleDownload() {
     setLoadingAction("export");
@@ -3517,7 +3774,10 @@ export default function App() {
                   )
                   .reduce((sum, r) => sum + r.amount, 0);
                 const goal = getGoalForDate(s, todayDate);
-                void fireNativeNotification(todayWater, goal);
+                void fireNativeNotification(todayWater, goal, {
+                  drinkAmount: s.notificationQuickDrinkAmount,
+                  snoozeMinutes: s.notificationQuickSnoozeMinutes,
+                });
                 setShowReminder(true);
               }}
               onSave={handleSettingsSave}
