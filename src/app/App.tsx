@@ -42,6 +42,11 @@ import {
   ChevronDown,
   Martini,
   Menu,
+  Droplet,
+  Coffee,
+  Leaf,
+  CupSoda,
+  Citrus,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
@@ -347,46 +352,59 @@ function playTestSound(type: string, volume: number) {
 
 // ─── Types & Constants ────────────────────────────────────────────────────────
 
-export type DrinkType = "water" | "coffee" | "tea" | "soda" | "juice";
+export type DrinkType = string;
 type ThemeMode = "light" | "dark";
 type TabKey = "dashboard" | "history" | "trends" | "settings";
 
-const DRINKS: Record<
-  DrinkType,
-  { label: string; emoji: string; colorLight: string; colorDark: string }
-> = {
+const DRINK_ICON_COMPONENTS = {
+  droplet: Droplet,
+  coffee: Coffee,
+  leaf: Leaf,
+  "cup-soda": CupSoda,
+  citrus: Citrus,
+} as const;
+
+type DrinkIconName = keyof typeof DRINK_ICON_COMPONENTS;
+
+type DrinkConfig = {
+  label: string;
+  iconName: DrinkIconName;
+  colorLight: string;
+  colorDark: string;
+};
+
+const DRINKS: Record<string, DrinkConfig> = {
   water: {
     label: "Water",
-    emoji: "💧",
+    iconName: "droplet",
     colorLight: "#0284c7",
     colorDark: "#38bdf8",
   },
   coffee: {
     label: "Coffee",
-    emoji: "☕",
+    iconName: "coffee",
     colorLight: "#92400e",
     colorDark: "#fbbf24",
   },
   tea: {
     label: "Tea",
-    emoji: "🍵",
+    iconName: "leaf",
     colorLight: "#15803d",
     colorDark: "#4ade80",
   },
   soda: {
     label: "Soda",
-    emoji: "🥤",
+    iconName: "cup-soda",
     colorLight: "#b91c1c",
     colorDark: "#f87171",
   },
   juice: {
     label: "Juice",
-    emoji: "🧃",
+    iconName: "citrus",
     colorLight: "#b45309",
     colorDark: "#fb923c",
   },
 };
-const DRINK_KEYS = Object.keys(DRINKS) as DrinkType[];
 const ML_PRESETS = [50, 100, 150, 200, 300];
 
 const NAV_ITEMS: { key: TabKey; label: string; icon: any }[] = [
@@ -462,6 +480,24 @@ function getDefaultState(): AppState {
 
 function mergeDefaults(partial: any): AppState {
   return { ...getDefaultState(), ...(partial ?? {}) };
+}
+
+function iconNameFromLegacyEmoji(value: unknown): DrinkIconName | null {
+  if (typeof value !== "string") return null;
+  const emoji = value.trim();
+  if (emoji === "💧") return "droplet";
+  if (emoji === "☕") return "coffee";
+  if (emoji === "🍵") return "leaf";
+  if (emoji === "🥤") return "cup-soda";
+  if (emoji === "🧃") return "citrus";
+  return null;
+}
+
+function normalizeDrinkIconName(value: unknown): DrinkIconName {
+  if (typeof value === "string" && value in DRINK_ICON_COMPONENTS) {
+    return value as DrinkIconName;
+  }
+  return iconNameFromLegacyEmoji(value) ?? "cup-soda";
 }
 
 function normalizeDate(value: unknown): string {
@@ -551,7 +587,7 @@ function normalizeSheetState(state: any): AppState {
               amount: Number(record?.amount) || 0,
               drinkType:
                 typeof record?.drinkType === "string" && record.drinkType
-                  ? record.drinkType
+                  ? record.drinkType.trim()
                   : "water",
               type:
                 record?.type === "snooze" || record?.type === "skip"
@@ -678,7 +714,11 @@ function downloadBlob(blob: Blob, filename: string) {
 
 // ─── Chart helpers ────────────────────────────────────────────────────────────
 
-function buildDailyData(records: HydrationRecord[], days = 7) {
+function buildDailyData(
+  records: HydrationRecord[],
+  drinkKeys: string[],
+  days = 7,
+) {
   const result: Record<string, any>[] = [];
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date();
@@ -686,19 +726,24 @@ function buildDailyData(records: HydrationRecord[], days = 7) {
     const date = d.toLocaleDateString("en-CA");
     const label = d.toLocaleDateString("en-US", { weekday: "short" });
     const entry: Record<string, any> = { date, label };
-    DRINK_KEYS.forEach((dt) => (entry[dt] = 0));
+    drinkKeys.forEach((dt) => (entry[dt] = 0));
     result.push(entry);
   }
   const byDate = Object.fromEntries(result.map((r) => [r.date, r]));
   records
     .filter((r) => r.type === "drink" && byDate[r.date])
     .forEach((r) => {
+      if (typeof byDate[r.date][r.drinkType] !== "number") return;
       byDate[r.date][r.drinkType] += r.amount;
     });
   return result;
 }
 
-function buildMonthlyData(records: HydrationRecord[], months = 6) {
+function buildMonthlyData(
+  records: HydrationRecord[],
+  drinkKeys: string[],
+  months = 6,
+) {
   const result: Record<string, any>[] = [];
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date();
@@ -709,7 +754,7 @@ function buildMonthlyData(records: HydrationRecord[], months = 6) {
       year: "2-digit",
     });
     const entry: Record<string, any> = { key, label };
-    DRINK_KEYS.forEach((dt) => (entry[dt] = 0));
+    drinkKeys.forEach((dt) => (entry[dt] = 0));
     result.push(entry);
   }
   const byMonth = Object.fromEntries(result.map((r) => [r.key, r]));
@@ -717,7 +762,8 @@ function buildMonthlyData(records: HydrationRecord[], months = 6) {
     .filter((r) => r.type === "drink")
     .forEach((r) => {
       const k = r.date.slice(0, 7);
-      if (byMonth[k]) byMonth[k][r.drinkType] += r.amount;
+      if (!byMonth[k] || typeof byMonth[k][r.drinkType] !== "number") return;
+      byMonth[k][r.drinkType] += r.amount;
     });
   return result;
 }
@@ -800,6 +846,19 @@ function Num({
   );
 }
 
+function DrinkTypeIcon({
+  iconName,
+  className,
+  style,
+}: {
+  iconName: DrinkIconName;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const Icon = DRINK_ICON_COMPONENTS[normalizeDrinkIconName(iconName)];
+  return <Icon className={className} style={style} />;
+}
+
 function SectionCard({
   title,
   subtitle,
@@ -846,12 +905,21 @@ function StatCard({
   );
 }
 
-function DrinkDot({ type, isDark }: { type: DrinkType; isDark: boolean }) {
+function DrinkDot({
+  type,
+  isDark,
+  drinks,
+}: {
+  type: DrinkType;
+  isDark: boolean;
+  drinks: Record<string, DrinkConfig>;
+}) {
+  const cfg = drinks[type] ?? DRINKS.water;
   return (
     <span
       className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
       style={{
-        background: isDark ? DRINKS[type].colorDark : DRINKS[type].colorLight,
+        background: isDark ? cfg.colorDark : cfg.colorLight,
       }}
     />
   );
@@ -859,7 +927,7 @@ function DrinkDot({ type, isDark }: { type: DrinkType; isDark: boolean }) {
 
 // ─── Chart tooltip ────────────────────────────────────────────────────────────
 
-function ChartTooltip({ active, payload, label, isDark }: any) {
+function ChartTooltip({ active, payload, label, isDark, drinks }: any) {
   if (!active || !payload?.length) return null;
   const total = payload.reduce((s: number, p: any) => s + (p.value || 0), 0);
   return (
@@ -875,10 +943,10 @@ function ChartTooltip({ active, payload, label, isDark }: any) {
             <span className="flex items-center gap-1.5 text-muted-foreground">
               {(() => {
                 const drinkType = p.dataKey as DrinkType;
-                const markerColor = DRINKS[drinkType]
+                const markerColor = drinks[drinkType]
                   ? isDark
-                    ? DRINKS[drinkType].colorDark
-                    : DRINKS[drinkType].colorLight
+                    ? drinks[drinkType].colorDark
+                    : drinks[drinkType].colorLight
                   : p.stroke || p.fill;
                 return (
                   <span
@@ -887,7 +955,7 @@ function ChartTooltip({ active, payload, label, isDark }: any) {
                   />
                 );
               })()}
-              {DRINKS[p.dataKey as DrinkType]?.label}
+              {drinks[p.dataKey as DrinkType]?.label ?? p.dataKey}
             </span>
             <Num className="text-foreground font-medium">{p.value}ml</Num>
           </div>
@@ -905,11 +973,15 @@ function ChartTooltip({ active, payload, label, isDark }: any) {
 // ── Stacked Area Chart — Dashboard 7-day view
 function DrinkAreaChart({
   data,
+  drinkKeys,
+  drinks,
   isDark,
   height = 210,
   goalLine,
 }: {
   data: Record<string, any>[];
+  drinkKeys: string[];
+  drinks: Record<string, DrinkConfig>;
   isDark: boolean;
   height?: number;
   goalLine?: number;
@@ -917,7 +989,7 @@ function DrinkAreaChart({
   const tickColor = isDark ? "#5F5F5F" : "#7C7C7C";
   const gridColor = isDark ? "#FFFFFF0D" : "#0000000D";
   const hoverFill = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
-  const activeDrinks = DRINK_KEYS.filter((dt) => data.some((d) => d[dt] > 0));
+  const activeDrinks = drinkKeys.filter((dt) => data.some((d) => d[dt] > 0));
   return (
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart
@@ -925,8 +997,8 @@ function DrinkAreaChart({
         margin={{ top: 8, right: 4, bottom: 0, left: -16 }}
       >
         <defs key="chart-defs">
-          {DRINK_KEYS.map((dt) => {
-            const color = isDark ? DRINKS[dt].colorDark : DRINKS[dt].colorLight;
+          {drinkKeys.map((dt) => {
+            const color = isDark ? drinks[dt].colorDark : drinks[dt].colorLight;
             return (
               <linearGradient
                 key={`grad-def-${dt}`}
@@ -969,7 +1041,7 @@ function DrinkAreaChart({
           width={52}
         />
         <Tooltip
-          content={<ChartTooltip isDark={isDark} />}
+          content={<ChartTooltip isDark={isDark} drinks={drinks} />}
           cursor={{ fill: hoverFill }}
         />
         {goalLine && (
@@ -980,8 +1052,8 @@ function DrinkAreaChart({
             strokeWidth={1.5}
           />
         )}
-        {DRINK_KEYS.map((dt) => {
-          const color = isDark ? DRINKS[dt].colorDark : DRINKS[dt].colorLight;
+        {drinkKeys.map((dt) => {
+          const color = isDark ? drinks[dt].colorDark : drinks[dt].colorLight;
           const isActive = activeDrinks.includes(dt);
           return (
             <Area
@@ -1003,11 +1075,15 @@ function DrinkAreaChart({
 // ── Grouped Bar Chart — Trends 7-day view
 function DrinkGroupedBarChart({
   data,
+  drinkKeys,
+  drinks,
   isDark,
   height = 220,
   goalLine,
 }: {
   data: Record<string, any>[];
+  drinkKeys: string[];
+  drinks: Record<string, DrinkConfig>;
   isDark: boolean;
   height?: number;
   goalLine?: number;
@@ -1015,7 +1091,7 @@ function DrinkGroupedBarChart({
   const tickColor = isDark ? "#5F5F5F" : "#7C7C7C";
   const gridColor = isDark ? "#FFFFFF0D" : "#0000000D";
   const hoverFill = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
-  const activeDrinks = DRINK_KEYS.filter((dt) => data.some((d) => d[dt] > 0));
+  const activeDrinks = drinkKeys.filter((dt) => data.some((d) => d[dt] > 0));
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart
@@ -1051,7 +1127,7 @@ function DrinkGroupedBarChart({
           width={52}
         />
         <Tooltip
-          content={<ChartTooltip isDark={isDark} />}
+          content={<ChartTooltip isDark={isDark} drinks={drinks} />}
           cursor={{
             fill: hoverFill,
           }}
@@ -1068,7 +1144,7 @@ function DrinkGroupedBarChart({
           <Bar
             key={`bar-${dt}`}
             dataKey={dt}
-            fill={isDark ? DRINKS[dt].colorDark : DRINKS[dt].colorLight}
+            fill={isDark ? drinks[dt].colorDark : drinks[dt].colorLight}
             radius={[3, 3, 0, 0]}
             maxBarSize={18}
           />
@@ -1081,16 +1157,20 @@ function DrinkGroupedBarChart({
 // ── Multi-Line Chart — Trends 6-month view
 function DrinkLineChart({
   data,
+  drinkKeys,
+  drinks,
   isDark,
   height = 220,
 }: {
   data: Record<string, any>[];
+  drinkKeys: string[];
+  drinks: Record<string, DrinkConfig>;
   isDark: boolean;
   height?: number;
 }) {
   const tickColor = isDark ? "#5F5F5F" : "#7C7C7C";
   const gridColor = isDark ? "#FFFFFF0D" : "#0000000D";
-  const activeDrinks = DRINK_KEYS.filter((dt) => data.some((d) => d[dt] > 0));
+  const activeDrinks = drinkKeys.filter((dt) => data.some((d) => d[dt] > 0));
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart
@@ -1123,9 +1203,9 @@ function DrinkLineChart({
           unit="ml"
           width={52}
         />
-        <Tooltip content={<ChartTooltip isDark={isDark} />} />
+        <Tooltip content={<ChartTooltip isDark={isDark} drinks={drinks} />} />
         {activeDrinks.map((dt) => {
-          const color = isDark ? DRINKS[dt].colorDark : DRINKS[dt].colorLight;
+          const color = isDark ? drinks[dt].colorDark : drinks[dt].colorLight;
           return (
             <Line
               key={`line-${dt}`}
@@ -1145,12 +1225,16 @@ function DrinkLineChart({
 
 function DrinkLegend({
   data,
+  drinkKeys,
+  drinks,
   isDark,
 }: {
   data: Record<string, any>[];
+  drinkKeys: string[];
+  drinks: Record<string, DrinkConfig>;
   isDark: boolean;
 }) {
-  const active = DRINK_KEYS.filter((dt) => data.some((d) => d[dt] > 0));
+  const active = drinkKeys.filter((dt) => data.some((d) => d[dt] > 0));
   if (!active.length) return null;
   return (
     <div className="flex flex-wrap gap-3">
@@ -1162,10 +1246,10 @@ function DrinkLegend({
           <span
             className="w-2.5 h-2.5 rounded-full"
             style={{
-              background: isDark ? DRINKS[dt].colorDark : DRINKS[dt].colorLight,
+              background: isDark ? drinks[dt].colorDark : drinks[dt].colorLight,
             }}
           />
-          {DRINKS[dt].label}
+          {drinks[dt].label}
         </div>
       ))}
     </div>
@@ -1264,6 +1348,8 @@ function AvgConsumptionIntervalChart({
 function RecordDrinkModal({
   onSave,
   onClose,
+  drinks,
+  drinkKeys,
   initialValues,
 }: {
   onSave: (r: {
@@ -1272,11 +1358,15 @@ function RecordDrinkModal({
     timestamp: number;
   }) => void;
   onClose: () => void;
+  drinks: Record<string, DrinkConfig>;
+  drinkKeys: string[];
   initialValues?: { drinkType: DrinkType; amount: number; timestamp: number };
 }) {
   const isEditing = !!initialValues;
   const [drinkType, setDrinkType] = useState<DrinkType>(
-    initialValues?.drinkType ?? "water",
+    initialValues?.drinkType && drinks[initialValues.drinkType]
+      ? initialValues.drinkType
+      : "water",
   );
   const [preset, setPreset] = useState<number | null>(
     initialValues?.amount !== undefined &&
@@ -1296,7 +1386,7 @@ function RecordDrinkModal({
 
   const amount = preset ?? (custom ? parseInt(custom, 10) : null);
   const valid = amount && !isNaN(amount) && amount > 0;
-  const d = DRINKS[drinkType];
+  const d = drinks[drinkType] ?? DRINKS.water;
 
   function handleSave() {
     if (!valid) return;
@@ -1331,9 +1421,10 @@ function RecordDrinkModal({
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">
               Drink Type
             </p>
-            <div className="grid grid-cols-5 gap-2">
-              {DRINK_KEYS.map((dt) => {
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+              {drinkKeys.map((dt) => {
                 const selected = drinkType === dt;
+                const drink = drinks[dt] ?? DRINKS.water;
                 return (
                   <button
                     key={dt}
@@ -1341,25 +1432,31 @@ function RecordDrinkModal({
                     className="flex flex-col items-center gap-1.5 py-3 rounded-lg border-2 transition-all"
                     style={{
                       borderColor: selected
-                        ? DRINKS[dt].colorLight
+                        ? drink.colorLight
                         : "var(--border)",
                       background: selected
-                        ? DRINKS[dt].colorLight + "15"
+                        ? drink.colorLight + "15"
                         : "transparent",
                     }}
                   >
-                    <span className="text-xl leading-none">
-                      {DRINKS[dt].emoji}
-                    </span>
+                    <DrinkTypeIcon
+                      iconName={drink.iconName}
+                      className="w-5 h-5"
+                      style={{
+                        color: selected
+                          ? drink.colorLight
+                          : "var(--muted-foreground)",
+                      }}
+                    />
                     <span
                       className="text-xs font-medium"
                       style={{
                         color: selected
-                          ? DRINKS[dt].colorLight
+                          ? drink.colorLight
                           : "var(--muted-foreground)",
                       }}
                     >
-                      {DRINKS[dt].label}
+                      {drink.label}
                     </span>
                   </button>
                 );
@@ -1454,8 +1551,8 @@ function RecordDrinkModal({
           >
             {valid
               ? isEditing
-                ? `Save Changes · ${amount} ml · ${d.emoji} ${d.label}`
-                : `Record ${amount} ml · ${d.emoji} ${d.label}`
+                ? `Save Changes · ${amount} ml · ${d.label}`
+                : `Record ${amount} ml · ${d.label}`
               : "Select an amount to continue"}
           </button>
         </div>
@@ -2008,7 +2105,7 @@ function SettingsPage({
                             minute: "2-digit",
                           });
                           await sendOsNotification({
-                            title: "Time to drink water 💧",
+                            title: "Time to drink water",
                             body: `Test notification · ${timeStr}`,
                             tagPrefix: "hydraa-test",
                             allowReminderActions: true,
@@ -3077,23 +3174,28 @@ export default function App() {
   const todayGoalPct =
     todayGoal > 0 ? Math.min((todayTotal / todayGoal) * 100, 100) : 0;
   const reminderRecs = todayRecs.filter((r) => r.source === "reminder");
-  const todayByType = DRINK_KEYS.map((dt) => ({
-    dt,
-    amount: todayDrinks
-      .filter((r) => r.drinkType === dt)
-      .reduce((s, r) => s + r.amount, 0),
-  })).filter((x) => x.amount > 0);
+  const allDrinks = DRINKS;
+  const allDrinkKeys = Object.keys(DRINKS);
 
-  const dailyData = buildDailyData(appState.records, 7);
+  const todayByType = allDrinkKeys
+    .map((dt) => ({
+      dt,
+      amount: todayDrinks
+        .filter((r) => r.drinkType === dt)
+        .reduce((s, r) => s + r.amount, 0),
+    }))
+    .filter((x) => x.amount > 0);
+
+  const dailyData = buildDailyData(appState.records, allDrinkKeys, 7);
   const avgIntervalDailyData = buildDailyAverageIntervalData(
     appState.records,
     7,
   );
-  const monthlyData = buildMonthlyData(appState.records, 6);
+  const monthlyData = buildMonthlyData(appState.records, allDrinkKeys, 6);
   const todayAvgConsumptionMinutes =
     getAverageConsumptionMinutesForRecords(todayDrinks);
 
-  const allByType = DRINK_KEYS.map((dt) => ({
+  const allByType = allDrinkKeys.map((dt) => ({
     dt,
     amount: appState.records
       .filter((r) => r.type === "drink" && r.drinkType === dt)
@@ -3383,9 +3485,13 @@ export default function App() {
                         key={dt}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border text-sm"
                       >
-                        <DrinkDot type={dt} isDark={isDark} />
+                        <DrinkDot
+                          type={dt}
+                          isDark={isDark}
+                          drinks={allDrinks}
+                        />
                         <span className="text-foreground font-medium">
-                          {DRINKS[dt].label}
+                          {allDrinks[dt]?.label ?? dt}
                         </span>
                         <Num className="text-muted-foreground">{amount} ml</Num>
                       </div>
@@ -3433,10 +3539,17 @@ export default function App() {
                       Stacked daily intake by drink type
                     </p>
                   </div>
-                  <DrinkLegend data={dailyData} isDark={isDark} />
+                  <DrinkLegend
+                    data={dailyData}
+                    drinkKeys={allDrinkKeys}
+                    drinks={allDrinks}
+                    isDark={isDark}
+                  />
                 </div>
                 <DrinkAreaChart
                   data={dailyData}
+                  drinkKeys={allDrinkKeys}
+                  drinks={allDrinks}
                   isDark={isDark}
                   goalLine={todayGoal}
                 />
@@ -3477,7 +3590,7 @@ export default function App() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  {DRINK_KEYS.map((dt) => {
+                  {allDrinkKeys.map((dt) => {
                     const cnt = appState.records.filter(
                       (r) => r.type === "drink" && r.drinkType === dt,
                     ).length;
@@ -3487,8 +3600,12 @@ export default function App() {
                         key={dt}
                         className="flex items-center gap-1.5 text-xs text-muted-foreground"
                       >
-                        <DrinkDot type={dt} isDark={isDark} />{" "}
-                        {DRINKS[dt].label} ×{cnt}
+                        <DrinkDot
+                          type={dt}
+                          isDark={isDark}
+                          drinks={allDrinks}
+                        />{" "}
+                        {(allDrinks[dt]?.label ?? dt) + " ×" + cnt}
                       </span>
                     );
                   })}
@@ -3560,7 +3677,10 @@ export default function App() {
                               </div>
 
                               <div className="flex flex-wrap items-center gap-2 text-xs text-secondary-foreground">
-                                <Num>💧 {dayWater} ml</Num>
+                                <span className="inline-flex items-center gap-1">
+                                  <Droplet className="w-3.5 h-3.5 text-primary" />
+                                  <Num>{dayWater} ml</Num>
+                                </span>
 
                                 {dayTotal !== dayWater && (
                                   <Num>Total {dayTotal} ml</Num>
@@ -3579,7 +3699,8 @@ export default function App() {
                               <div className="divide-y divide-border">
                                 {recs.map((r) => {
                                   if (r.type === "drink") {
-                                    const d = DRINKS[r.drinkType];
+                                    const d =
+                                      allDrinks[r.drinkType] ?? DRINKS.water;
                                     const isDeleting = deletingId === r.id;
                                     return (
                                       <div key={r.id}>
@@ -3587,6 +3708,7 @@ export default function App() {
                                           <DrinkDot
                                             type={r.drinkType}
                                             isDark={isDark}
+                                            drinks={allDrinks}
                                           />
                                           <div className="flex-1 flex items-center gap-2 min-w-0">
                                             <span className="text-sm font-medium text-secondary-foreground">
@@ -3743,10 +3865,17 @@ export default function App() {
                       Dashed line = water goal
                     </p>
                   </div>
-                  <DrinkLegend data={dailyData} isDark={isDark} />
+                  <DrinkLegend
+                    data={dailyData}
+                    drinkKeys={allDrinkKeys}
+                    drinks={allDrinks}
+                    isDark={isDark}
+                  />
                 </div>
                 <DrinkGroupedBarChart
                   data={dailyData}
+                  drinkKeys={allDrinkKeys}
+                  drinks={allDrinks}
                   isDark={isDark}
                   height={220}
                   goalLine={todayGoal}
@@ -3764,10 +3893,17 @@ export default function App() {
                       Monthly totals per drink type
                     </p>
                   </div>
-                  <DrinkLegend data={monthlyData} isDark={isDark} />
+                  <DrinkLegend
+                    data={monthlyData}
+                    drinkKeys={allDrinkKeys}
+                    drinks={allDrinks}
+                    isDark={isDark}
+                  />
                 </div>
                 <DrinkLineChart
                   data={monthlyData}
+                  drinkKeys={allDrinkKeys}
+                  drinks={allDrinks}
                   isDark={isDark}
                   height={220}
                 />
@@ -3788,18 +3924,22 @@ export default function App() {
                         key={dt}
                         className="px-5 py-3.5 flex items-center gap-4"
                       >
-                        <DrinkDot type={dt} isDark={isDark} />
+                        <DrinkDot
+                          type={dt}
+                          isDark={isDark}
+                          drinks={allDrinks}
+                        />
                         <span className="text-sm font-medium text-foreground w-14">
-                          {DRINKS[dt].label}
+                          {allDrinks[dt]?.label ?? dt}
                         </span>
-                        <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div className="flex-1 h-1.5 rounded-full bg-muted/50 overflow-hidden">
                           <div
                             className="h-full rounded-full"
                             style={{
                               width: `${share}%`,
                               background: isDark
-                                ? DRINKS[dt].colorDark
-                                : DRINKS[dt].colorLight,
+                                ? allDrinks[dt].colorDark
+                                : allDrinks[dt].colorLight,
                             }}
                           />
                         </div>
@@ -3856,6 +3996,8 @@ export default function App() {
             setShowRecord(false);
             setEditingRecord(null);
           }}
+          drinks={allDrinks}
+          drinkKeys={allDrinkKeys}
           initialValues={
             editingRecord
               ? {
