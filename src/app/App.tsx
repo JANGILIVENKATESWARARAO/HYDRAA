@@ -3142,11 +3142,11 @@ export default function App() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard
                   label="All-time water"
-                  value={`${allByType.find((x) => x.dt === "water")?.amount ?? 0} ml`}
+                  value={`${((allByType.find((x) => x.dt === "water")?.amount ?? 0) / 1000).toFixed(2)} L`}
                 />
                 <StatCard
                   label="Total beverages"
-                  value={`${allTotal} ml`}
+                  value={`${(allTotal / 1000).toFixed(2)} L`}
                   sub={`${appState.records.filter((r) => r.type === "drink").length} entries`}
                 />
                 <StatCard
@@ -3239,7 +3239,9 @@ export default function App() {
                           />
                         </div>
                         <Num className="text-sm text-foreground font-medium w-20 text-right">
-                          {amount} ml
+                          {amount >= 1000
+                            ? `${(amount / 1000).toFixed(2)} L`
+                            : `${amount} ml`}
                         </Num>
                         <Num className="text-xs text-muted-foreground w-8 text-right">
                           {Math.round(share)}%
