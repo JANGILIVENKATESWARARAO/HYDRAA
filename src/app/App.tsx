@@ -1580,6 +1580,9 @@ function SettingsPage({
   );
   const [soundVolume, setSoundVolume] = useState(state.soundVolume ?? 0.7);
   const [soundEnabled, setSoundEnabled] = useState(state.soundEnabled ?? true);
+  const [activeSettingsTab, setActiveSettingsTab] = useState<
+    "hydration" | "sound" | "notifications"
+  >("hydration");
   const [notificationQuickDrinkAmount, setNotificationQuickDrinkAmount] =
     useState(state.notificationQuickDrinkAmount);
   const [notificationQuickSnoozeMinutes, setNotificationQuickSnoozeMinutes] =
@@ -1646,7 +1649,7 @@ function SettingsPage({
   }
 
   return (
-    <div className="max-w-lg space-y-5">
+    <div className="max-w-lg space-y-4 sm:space-y-5">
       <div>
         <h2 className="font-semibold text-foreground text-base mb-0.5">
           Settings
@@ -1656,371 +1659,424 @@ function SettingsPage({
         </p>
       </div>
 
-      {/* ── Hydration section ── */}
-      <div className="bg-card border border-border rounded-xl divide-y divide-border">
-        {/* Goal */}
-        <div className="px-5 py-4">
-          <label className="block text-sm font-medium text-foreground mb-2">
-            Today's Water Goal
-          </label>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-            <input
-              type="number"
-              value={goal}
-              onChange={(e) => setGoal(Number(e.target.value))}
-              className="w-full sm:flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
-              style={{ fontFamily: "Inter, sans-serif" }}
-            />
-            <span className="text-sm text-muted-foreground sm:shrink-0">
-              ml / day
-            </span>
-          </div>
-        </div>
-
-        {/* Interval */}
-        <div className="px-5 py-4">
-          <label className="block text-sm font-medium text-foreground mb-3">
-            Reminder Interval
-          </label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[15, 30, 45, 60].map((v) => (
-              <button
-                key={v}
-                onClick={() => setIntervalVal(v)}
-                className="py-2 rounded-lg border text-sm font-medium transition-all"
-                style={{
-                  borderColor:
-                    interval === v ? "var(--primary)" : "var(--border)",
-                  background: interval === v ? "var(--primary)" : "transparent",
-                  color:
-                    interval === v
-                      ? "var(--primary-foreground)"
-                      : "var(--muted-foreground)",
-                  fontFamily: "Inter, sans-serif",
-                }}
-              >
-                {v}m
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Snooze durations */}
-        <div className="px-5 py-4">
-          <label className="block text-sm font-medium text-foreground mb-1">
-            Snooze Durations
-          </label>
-          <p className="text-xs text-muted-foreground mb-2">
-            Comma-separated values in minutes
-          </p>
-          <input
-            type="text"
-            value={snoozes}
-            onChange={(e) => setSnoozes(e.target.value)}
-            className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
-            style={{ fontFamily: "Inter, sans-serif" }}
-          />
-        </div>
-
-        {/* Reminders toggle */}
-        <div className="px-5 py-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-foreground">
-              Enable Reminders
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Show popup alerts on schedule
-            </p>
-          </div>
-          <Toggle on={enabled} onToggle={() => setEnabled((e) => !e)} />
-        </div>
+      <div
+        role="tablist"
+        aria-label="Settings sections"
+        className="grid grid-cols-3 gap-1 rounded-xl border border-border bg-muted/50 p-1"
+      >
+        {[
+          { key: "hydration", label: "Hydration" },
+          { key: "sound", label: "Sound" },
+          { key: "notifications", label: "Notifications" },
+        ].map((tab) => {
+          const active = activeSettingsTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              role="tab"
+              aria-selected={active}
+              onClick={() =>
+                setActiveSettingsTab(
+                  tab.key as "hydration" | "sound" | "notifications",
+                )
+              }
+              className={[
+                "w-full px-2 sm:px-3 py-2 rounded-lg text-[11px] sm:text-sm font-semibold whitespace-nowrap transition-colors duration-150",
+                active
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-foreground hover:bg-muted/70 hover:text-foreground",
+              ].join(" ")}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* ── Sound section ── */}
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5 px-0.5">
-          Notification Sound
-        </p>
+      {activeSettingsTab === "hydration" && (
         <div className="bg-card border border-border rounded-xl divide-y divide-border">
-          {/* Sound enabled toggle */}
-          <div className="px-5 py-4 flex items-start sm:items-center justify-between gap-3">
-            <div className="flex items-start sm:items-center gap-2.5 min-w-0">
-              {soundEnabled ? (
-                <Volume2 className="w-4 h-4 text-primary" />
-              ) : (
-                <VolumeX className="w-4 h-4 text-muted-foreground" />
-              )}
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">
-                  Play Sound on Reminder
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Plays audio when reminder popup appears
-                </p>
-              </div>
+          <div className="px-4 sm:px-5 py-4">
+            <label className="block text-sm font-medium text-foreground mb-2">
+              Today's Water Goal
+            </label>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+              <input
+                type="number"
+                value={goal}
+                onChange={(e) => setGoal(Number(e.target.value))}
+                className="w-full sm:flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
+                style={{ fontFamily: "Inter, sans-serif" }}
+              />
+              <span className="text-sm text-muted-foreground sm:shrink-0">
+                ml / day
+              </span>
             </div>
-            <Toggle
-              on={soundEnabled}
-              onToggle={() => setSoundEnabled((e) => !e)}
-            />
           </div>
 
-          {/* Sound picker */}
-          <div className="px-5 py-4">
-            <label className="block text-sm font-medium text-foreground mb-2.5">
-              Sound
+          <div className="px-4 sm:px-5 py-4">
+            <label className="block text-sm font-medium text-foreground mb-3">
+              Reminder Interval
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {SOUND_OPTIONS.map((s) => {
-                const active = soundChoice === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => setSoundChoice(s.id)}
-                    disabled={!soundEnabled}
-                    className="py-2 px-3 rounded-lg border text-xs font-medium transition-all disabled:opacity-40"
-                    style={{
-                      borderColor: active ? "var(--primary)" : "var(--border)",
-                      background: active ? "var(--primary)" : "transparent",
-                      color: active
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[15, 30, 45, 60].map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setIntervalVal(v)}
+                  className="py-2 rounded-lg border text-sm font-medium transition-all"
+                  style={{
+                    borderColor:
+                      interval === v ? "var(--primary)" : "var(--border)",
+                    background:
+                      interval === v ? "var(--primary)" : "transparent",
+                    color:
+                      interval === v
                         ? "var(--primary-foreground)"
                         : "var(--muted-foreground)",
-                    }}
-                  >
-                    {s.label}
-                  </button>
-                );
-              })}
+                    fontFamily: "Inter, sans-serif",
+                  }}
+                >
+                  {v}m
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Volume slider */}
-          <div className="px-5 py-4">
-            <div className="flex items-center justify-between mb-2.5">
-              <label className="text-sm font-medium text-foreground">
-                Volume
-              </label>
-              <Num className="text-sm text-muted-foreground">
-                {Math.round(soundVolume * 100)}%
-              </Num>
-            </div>
+          <div className="px-4 sm:px-5 py-4">
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Snooze Durations
+            </label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Comma-separated values in minutes
+            </p>
             <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={soundVolume}
-              onChange={(e) => setSoundVolume(Number(e.target.value))}
-              disabled={!soundEnabled}
-              className="w-full accent-primary disabled:opacity-40"
+              type="text"
+              value={snoozes}
+              onChange={(e) => setSnoozes(e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
+              style={{ fontFamily: "Inter, sans-serif" }}
             />
-            <div className="flex justify-end mt-3">
-              <button
-                onClick={() => playTestSound(soundChoice, soundVolume)}
-                disabled={!soundEnabled || soundChoice === "none"}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Volume2 className="w-3.5 h-3.5" /> Test Sound
-              </button>
-            </div>
           </div>
-        </div>
-      </div>
 
-      {/* ── Browser Notifications section ── */}
-      {"Notification" in window && (
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5 px-0.5">
-            Browser Notifications
-          </p>
-          <p className="text-[11px] text-muted-foreground mb-2 px-0.5">
-            Status: Permission{" "}
-            <span
-              className={
-                notifPerm === "granted"
-                  ? "font-semibold text-green-500"
-                  : "font-semibold text-red-500"
-              }
-            >
-              {notifPerm}
-            </span>{" "}
-            · Web Notification API{" "}
-            <span
-              className={
-                notificationApiAvailable
-                  ? "font-semibold text-green-500"
-                  : "font-semibold text-red-500"
-              }
-            >
-              {notificationApiAvailable ? "available" : "unavailable"}
-            </span>{" "}
-            · Service Worker notifications{" "}
-            <span
-              className={
-                serviceWorkerNotificationAvailable
-                  ? "font-semibold text-green-500"
-                  : "font-semibold text-red-500"
-              }
-            >
-              {serviceWorkerNotificationAvailable ? "available" : "unavailable"}
-            </span>
-          </p>
-          <div className="bg-card border border-border rounded-xl divide-y divide-border">
-            <div className="px-5 py-4 space-y-3">
+          <div className="px-4 sm:px-5 py-4 flex items-center justify-between gap-3">
+            <div>
               <p className="text-sm font-medium text-foreground">
-                Reminder Quick Actions
+                Enable Reminders
               </p>
               <p className="text-xs text-muted-foreground">
-                Configure buttons shown in OS notification. Skip is always
-                included.
+                Show popup alerts on schedule
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="space-y-1.5">
-                  <span className="text-xs text-muted-foreground">
-                    Drink Amount (ml)
-                  </span>
-                  <input
-                    type="number"
-                    min={1}
-                    value={notificationQuickDrinkAmount}
-                    onChange={(e) => {
-                      const next = Number(e.target.value);
-                      setNotificationQuickDrinkAmount(
-                        Number.isFinite(next) ? next : 0,
-                      );
-                    }}
-                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
-                    style={{ fontFamily: "Inter, sans-serif" }}
-                  />
-                </label>
-                <label className="space-y-1.5">
-                  <span className="text-xs text-muted-foreground">
-                    Snooze (minutes)
-                  </span>
-                  <input
-                    type="number"
-                    min={1}
-                    value={notificationQuickSnoozeMinutes}
-                    onChange={(e) => {
-                      const next = Number(e.target.value);
-                      setNotificationQuickSnoozeMinutes(
-                        Number.isFinite(next) ? next : 0,
-                      );
-                    }}
-                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
-                    style={{ fontFamily: "Inter, sans-serif" }}
-                  />
-                </label>
-              </div>
             </div>
-            {/* Permission row */}
-            <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <Bell className="w-4 h-4 shrink-0 text-primary" />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">
-                    OS Notifications
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {notifPerm === "granted"
-                      ? "Active — notifications should appear even when the tab is in background"
-                      : notifPerm === "denied"
-                        ? isEdgeBrowser
-                          ? "Blocked — in Edge, click the lock icon in the address bar, open Site permissions, and allow Notifications"
-                          : "Blocked — open site permissions in your browser and allow Notifications"
-                        : "Click Enable, then Allow in the browser prompt"}
-                  </p>
-                </div>
-              </div>
-              {notifPerm === "granted" ? (
-                <span className="shrink-0 text-xs font-medium text-green-500 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full">
-                  Allowed
-                </span>
-              ) : notifPerm === "denied" ? (
-                <span className="shrink-0 text-xs font-medium text-destructive bg-destructive/10 border border-destructive/20 px-2.5 py-1 rounded-full">
-                  Blocked
-                </span>
-              ) : (
-                <button
-                  onClick={async () => {
-                    const granted = await requestNotificationPermission();
-                    setNotifPerm(granted ? "granted" : "denied");
-                  }}
-                  className="shrink-0 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-all"
-                >
-                  Enable
-                </button>
-              )}
-            </div>
-            {/* Test row — only shown when granted */}
-            {notifPerm === "granted" && (
-              <div className="px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <p className="text-xs text-muted-foreground">
-                  Send a test notification right now
-                </p>
-                <button
-                  onClick={async () => {
-                    const timeStr = new Date().toLocaleTimeString([], {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    });
-                    await sendOsNotification({
-                      title: "Time to drink water 💧",
-                      body: `Test notification · ${timeStr}`,
-                      tagPrefix: "hydraa-test",
-                      allowReminderActions: true,
-                      reminderActionSettings: {
-                        drinkAmount: normalizeNotificationQuickDrinkAmount(
-                          notificationQuickDrinkAmount,
-                        ),
-                        snoozeMinutes: normalizeNotificationQuickSnoozeMinutes(
-                          notificationQuickSnoozeMinutes,
-                        ),
-                      },
-                    });
-                  }}
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
-                >
-                  <Bell className="w-3 h-3" /> Send Test
-                </button>
-              </div>
-            )}
+            <Toggle on={enabled} onToggle={() => setEnabled((e) => !e)} />
           </div>
-          {notifPerm !== "granted" && (
-            <p className="text-[11px] text-muted-foreground mt-2 px-0.5">
-              {isEdgeBrowser
-                ? "For Edge: if status is Blocked, open the lock icon near the address bar, go to Site permissions, then allow Notifications and refresh this page."
-                : "If status is Blocked, open your browser site permissions, allow Notifications for this site, and refresh this page."}
-            </p>
-          )}
         </div>
       )}
 
-      {/* Test reminder trigger */}
-      <div className="bg-card border border-border rounded-xl px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+      {activeSettingsTab === "sound" && (
         <div>
-          <p className="text-sm font-medium text-foreground">
-            Test Reminder Popup
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5 px-0.5">
+            Notification Sound
           </p>
-          <p className="text-xs text-muted-foreground">
-            Fires the reminder popup + OS notification immediately
-          </p>
+          <div className="bg-card border border-border rounded-xl divide-y divide-border">
+            <div className="px-4 sm:px-5 py-4 flex items-start sm:items-center justify-between gap-3">
+              <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                {soundEnabled ? (
+                  <Volume2 className="w-4 h-4 text-primary" />
+                ) : (
+                  <VolumeX className="w-4 h-4 text-muted-foreground" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    Play Sound on Reminder
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Plays audio when reminder popup appears
+                  </p>
+                </div>
+              </div>
+              <Toggle
+                on={soundEnabled}
+                onToggle={() => setSoundEnabled((e) => !e)}
+              />
+            </div>
+
+            <div className="px-4 sm:px-5 py-4">
+              <label className="block text-sm font-medium text-foreground mb-2.5">
+                Sound
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {SOUND_OPTIONS.map((s) => {
+                  const active = soundChoice === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => setSoundChoice(s.id)}
+                      disabled={!soundEnabled}
+                      className="py-2 px-3 rounded-lg border text-xs font-medium transition-all disabled:opacity-40"
+                      style={{
+                        borderColor: active
+                          ? "var(--primary)"
+                          : "var(--border)",
+                        background: active ? "var(--primary)" : "transparent",
+                        color: active
+                          ? "var(--primary-foreground)"
+                          : "var(--muted-foreground)",
+                      }}
+                    >
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="px-4 sm:px-5 py-4">
+              <div className="flex items-center justify-between mb-2.5">
+                <label className="text-sm font-medium text-foreground">
+                  Volume
+                </label>
+                <Num className="text-sm text-muted-foreground">
+                  {Math.round(soundVolume * 100)}%
+                </Num>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={soundVolume}
+                onChange={(e) => setSoundVolume(Number(e.target.value))}
+                disabled={!soundEnabled}
+                className="w-full accent-primary disabled:opacity-40"
+              />
+              <div className="flex justify-end mt-3">
+                <button
+                  onClick={() => playTestSound(soundChoice, soundVolume)}
+                  disabled={!soundEnabled || soundChoice === "none"}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Volume2 className="w-3.5 h-3.5" /> Test Sound
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
+      )}
+
+      {activeSettingsTab === "notifications" && (
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5 px-0.5">
+              Browser Notifications
+            </p>
+
+            <div className="bg-card border border-border rounded-xl divide-y divide-border">
+              <div className="px-4 sm:px-5 py-4 space-y-3">
+                <p className="text-sm font-medium text-foreground">
+                  Reminder Quick Actions
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Configure buttons shown in OS notification. Skip is always
+                  included.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="space-y-1.5">
+                    <span className="text-xs text-muted-foreground">
+                      Drink Amount (ml)
+                    </span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={notificationQuickDrinkAmount}
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        setNotificationQuickDrinkAmount(
+                          Number.isFinite(next) ? next : 0,
+                        );
+                      }}
+                      className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
+                      style={{ fontFamily: "Inter, sans-serif" }}
+                    />
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-xs text-muted-foreground">
+                      Snooze (minutes)
+                    </span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={notificationQuickSnoozeMinutes}
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        setNotificationQuickSnoozeMinutes(
+                          Number.isFinite(next) ? next : 0,
+                        );
+                      }}
+                      className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
+                      style={{ fontFamily: "Inter, sans-serif" }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {"Notification" in window ? (
+                <>
+                  <div className="px-4 sm:px-5 py-3 border-t border-border/70">
+                    <p className="text-[11px] text-muted-foreground">
+                      Status: Permission{" "}
+                      <span
+                        className={
+                          notifPerm === "granted"
+                            ? "font-semibold text-green-500"
+                            : "font-semibold text-red-500"
+                        }
+                      >
+                        {notifPerm}
+                      </span>{" "}
+                      · Web Notification API{" "}
+                      <span
+                        className={
+                          notificationApiAvailable
+                            ? "font-semibold text-green-500"
+                            : "font-semibold text-red-500"
+                        }
+                      >
+                        {notificationApiAvailable ? "available" : "unavailable"}
+                      </span>{" "}
+                      · Service Worker notifications{" "}
+                      <span
+                        className={
+                          serviceWorkerNotificationAvailable
+                            ? "font-semibold text-green-500"
+                            : "font-semibold text-red-500"
+                        }
+                      >
+                        {serviceWorkerNotificationAvailable
+                          ? "available"
+                          : "unavailable"}
+                      </span>
+                    </p>
+                  </div>
+
+                  <div className="px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Bell className="w-4 h-4 shrink-0 text-primary" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">
+                          OS Notifications
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {notifPerm === "granted"
+                            ? "Active — notifications should appear even when the tab is in background"
+                            : notifPerm === "denied"
+                              ? isEdgeBrowser
+                                ? "Blocked — in Edge, click the lock icon in the address bar, open Site permissions, and allow Notifications"
+                                : "Blocked — open site permissions in your browser and allow Notifications"
+                              : "Click Enable, then Allow in the browser prompt"}
+                        </p>
+                      </div>
+                    </div>
+                    {notifPerm === "granted" ? (
+                      <span className="shrink-0 text-xs font-medium text-green-500 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full">
+                        Allowed
+                      </span>
+                    ) : notifPerm === "denied" ? (
+                      <span className="shrink-0 text-xs font-medium text-destructive bg-destructive/10 border border-destructive/20 px-2.5 py-1 rounded-full">
+                        Blocked
+                      </span>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          const granted = await requestNotificationPermission();
+                          setNotifPerm(granted ? "granted" : "denied");
+                        }}
+                        className="shrink-0 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-all"
+                      >
+                        Enable
+                      </button>
+                    )}
+                  </div>
+
+                  {notifPerm === "granted" && (
+                    <div className="px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-border/70">
+                      <p className="text-xs text-muted-foreground">
+                        Send a test notification right now
+                      </p>
+                      <button
+                        onClick={async () => {
+                          const timeStr = new Date().toLocaleTimeString([], {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          });
+                          await sendOsNotification({
+                            title: "Time to drink water 💧",
+                            body: `Test notification · ${timeStr}`,
+                            tagPrefix: "hydraa-test",
+                            allowReminderActions: true,
+                            reminderActionSettings: {
+                              drinkAmount:
+                                normalizeNotificationQuickDrinkAmount(
+                                  notificationQuickDrinkAmount,
+                                ),
+                              snoozeMinutes:
+                                normalizeNotificationQuickSnoozeMinutes(
+                                  notificationQuickSnoozeMinutes,
+                                ),
+                            },
+                          });
+                        }}
+                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                      >
+                        <Bell className="w-3 h-3" /> Send Test
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="px-4 sm:px-5 py-4">
+                  <p className="text-xs text-muted-foreground">
+                    Browser notifications are unavailable in this environment.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {"Notification" in window && notifPerm !== "granted" && (
+              <p className="text-[11px] text-muted-foreground mt-2 px-0.5">
+                {isEdgeBrowser
+                  ? "For Edge: if status is Blocked, open the lock icon near the address bar, go to Site permissions, then allow Notifications and refresh this page."
+                  : "If status is Blocked, open your browser site permissions, allow Notifications for this site, and refresh this page."}
+              </p>
+            )}
+          </div>
+
+          <div className="bg-card border border-border rounded-xl px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Test Reminder Popup
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Fires the reminder popup + OS notification immediately
+              </p>
+            </div>
+            <button
+              onClick={onTestReminder}
+              className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              <Bell className="w-3 h-3" /> Fire Now
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="pt-1 sm:pt-2 sm:flex sm:justify-end">
         <button
-          onClick={onTestReminder}
-          className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
+          onClick={save}
+          disabled={isSaving}
+          className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <Bell className="w-3 h-3" /> Fire Now
+          {isSaving ? "Saving..." : saved ? "Saved ✓" : "Save Changes"}
         </button>
       </div>
-
-      <button
-        onClick={save}
-        disabled={isSaving}
-        className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-      >
-        {isSaving ? "Saving..." : saved ? "Saved ✓" : "Save Changes"}
-      </button>
     </div>
   );
 }
