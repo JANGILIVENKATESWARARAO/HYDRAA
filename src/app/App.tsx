@@ -180,9 +180,59 @@ async function requestNotificationPermission(): Promise<boolean> {
   return result === "granted";
 }
 
-async function fireNativeNotification(todayWater: number, goal: number) {
-  if (!("Notification" in window) || Notification.permission !== "granted")
+function getNotificationIconUrl() {
+  return `${window.location.origin}/favicon.ico`;
+}
+
+async function sendOsNotification({
+  title,
+  body,
+  tagPrefix,
+}: {
+  title: string;
+  body: string;
+  tagPrefix: string;
+}) {
+  if (!("Notification" in window) || Notification.permission !== "granted") {
     return;
+  }
+
+  const notificationId = `${tagPrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const icon = getNotificationIconUrl();
+
+  // 1) Preferred path for browsers that support SW notifications.
+  try {
+    if ("serviceWorker" in navigator && window.isSecureContext) {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration?.showNotification) {
+        await registration.showNotification(title, {
+          body,
+          icon,
+          tag: notificationId,
+        });
+        return;
+      }
+    }
+  } catch {
+    // Fall through to standard Notification API.
+  }
+
+  // 2) Broad fallback for browsers that support window notifications.
+  try {
+    const notification = new Notification(title, {
+      body,
+      icon,
+      tag: notificationId,
+    });
+
+    // Prevent an endless pile-up while still allowing repeated alerts.
+    setTimeout(() => notification.close(), 15000);
+  } catch {
+    // No further fallback available at runtime.
+  }
+}
+
+async function fireNativeNotification(todayWater: number, goal: number) {
   const pct = goal > 0 ? Math.round((todayWater / goal) * 100) : 0;
   const now = new Date();
   const timeStr = now.toLocaleTimeString([], {
@@ -194,36 +244,12 @@ async function fireNativeNotification(todayWater: number, goal: number) {
     todayWater > 0
       ? `${todayWater} / ${goal} ml today (${pct}%) · ${timeStr}`
       : `Goal: ${goal} ml · Start hydrating! · ${timeStr}`;
-  const notificationId = `hydraa-reminder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  try {
-    if ("serviceWorker" in navigator) {
-      const registration = await navigator.serviceWorker.getRegistration();
-      if (registration) {
-        await registration.showNotification(title, {
-          body,
-          icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='28'%3E%F0%9F%92%A7%3C/text%3E%3C/svg%3E",
-          tag: notificationId,
-          renotify: false,
-          requireInteraction: true,
-          silent: false,
-        });
-        return;
-      }
-    }
 
-    const notification = new Notification(title, {
-      body,
-      icon: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='28'%3E%F0%9F%92%A7%3C/text%3E%3C/svg%3E",
-      tag: notificationId,
-      requireInteraction: true,
-      silent: false,
-    });
-
-    // Keep the center clean while still forcing visible alert on each reminder.
-    setTimeout(() => notification.close(), 15000);
-  } catch {
-    /* silently ignore if blocked */
-  }
+  await sendOsNotification({
+    title,
+    body,
+    tagPrefix: "hydraa-reminder",
+  });
 }
 
 function playTestSound(type: string, volume: number) {
@@ -1458,6 +1484,14 @@ function SettingsPage({
   const [notifPerm, setNotifPerm] = useState<NotificationPermission>(
     "Notification" in window ? Notification.permission : "denied",
   );
+  const browserUserAgent =
+    typeof navigator !== "undefined" ? navigator.userAgent.toLowerCase() : "";
+  const isEdgeBrowser = browserUserAgent.includes("edg/");
+  const notificationApiAvailable = "Notification" in window;
+  const serviceWorkerNotificationAvailable =
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    window.isSecureContext;
 
   useEffect(() => {
     setGoal(getGoalForDate(state, today));
@@ -1689,6 +1723,38 @@ function SettingsPage({
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5 px-0.5">
             Browser Notifications
           </p>
+          <p className="text-[11px] text-muted-foreground mb-2 px-0.5">
+            Status: Permission{" "}
+            <span
+              className={
+                notifPerm === "granted"
+                  ? "font-semibold text-green-500"
+                  : "font-semibold text-red-500"
+              }
+            >
+              {notifPerm}
+            </span>{" "}
+            · Web Notification API{" "}
+            <span
+              className={
+                notificationApiAvailable
+                  ? "font-semibold text-green-500"
+                  : "font-semibold text-red-500"
+              }
+            >
+              {notificationApiAvailable ? "available" : "unavailable"}
+            </span>{" "}
+            · Service Worker notifications{" "}
+            <span
+              className={
+                serviceWorkerNotificationAvailable
+                  ? "font-semibold text-green-500"
+                  : "font-semibold text-red-500"
+              }
+            >
+              {serviceWorkerNotificationAvailable ? "available" : "unavailable"}
+            </span>
+          </p>
           <div className="bg-card border border-border rounded-xl divide-y divide-border">
             {/* Permission row */}
             <div className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
@@ -1700,9 +1766,11 @@ function SettingsPage({
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {notifPerm === "granted"
-                      ? "Active — Chrome will show alerts even when tab is in background"
+                      ? "Active — notifications should appear even when the tab is in background"
                       : notifPerm === "denied"
-                        ? "Blocked — open browser Site Settings to allow"
+                        ? isEdgeBrowser
+                          ? "Blocked — in Edge, click the lock icon in the address bar, open Site permissions, and allow Notifications"
+                          : "Blocked — open site permissions in your browser and allow Notifications"
                         : "Click Enable, then Allow in the browser prompt"}
                   </p>
                 </div>
@@ -1734,23 +1802,16 @@ function SettingsPage({
                   Send a test notification right now
                 </p>
                 <button
-                  onClick={() => {
-                    const today = new Date().toISOString().slice(0, 10);
+                  onClick={async () => {
                     const timeStr = new Date().toLocaleTimeString([], {
                       hour: "numeric",
                       minute: "2-digit",
                     });
-                    const testNotificationId = `hydraa-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-                    try {
-                      new Notification("Time to drink water 💧", {
-                        body: `Test notification · ${timeStr}`,
-                        tag: testNotificationId,
-                        requireInteraction: true,
-                        silent: false,
-                      });
-                    } catch {
-                      /* ignore */
-                    }
+                    await sendOsNotification({
+                      title: "Time to drink water 💧",
+                      body: `Test notification · ${timeStr}`,
+                      tagPrefix: "hydraa-test",
+                    });
                   }}
                   className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
                 >
@@ -1761,8 +1822,9 @@ function SettingsPage({
           </div>
           {notifPerm !== "granted" && (
             <p className="text-[11px] text-muted-foreground mt-2 px-0.5">
-              ⚠️ Notifications only work when this tab is open. Chrome will show
-              the alert even if you switch to another app or window.
+              {isEdgeBrowser
+                ? "For Edge: if status is Blocked, open the lock icon near the address bar, go to Site permissions, then allow Notifications and refresh this page."
+                : "If status is Blocked, open your browser site permissions, allow Notifications for this site, and refresh this page."}
             </p>
           )}
         </div>
