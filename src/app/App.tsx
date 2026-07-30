@@ -42,6 +42,7 @@ import {
   ChevronDown,
   Martini,
 } from "lucide-react";
+import { Toaster, toast } from "sonner";
 
 // ─── Google Sheets Integration Setup ──────────────────────────────────────────
 const GOOGLE_SHEET_ID = "1AA1bEa8v-qe6LFiwcc6l6pFsaJH1cfOHCgrTtakNVyA";
@@ -639,6 +640,66 @@ function buildMonthlyData(records: HydrationRecord[], months = 6) {
   return result;
 }
 
+function getAverageConsumptionMinutesForRecords(records: HydrationRecord[]) {
+  const drinks = records
+    .filter((r) => r.type === "drink")
+    .sort((a, b) => {
+      const aTime = new Date(`${a.date}T${a.time}`).getTime();
+      const bTime = new Date(`${b.date}T${b.time}`).getTime();
+      return aTime - bTime;
+    });
+
+  if (drinks.length < 2) {
+    return null;
+  }
+
+  let totalMinutes = 0;
+  for (let i = 1; i < drinks.length; i++) {
+    const previous = new Date(
+      `${drinks[i - 1].date}T${drinks[i - 1].time}`,
+    ).getTime();
+    const current = new Date(`${drinks[i].date}T${drinks[i].time}`).getTime();
+    totalMinutes += (current - previous) / 60000;
+  }
+
+  return Math.round(totalMinutes / (drinks.length - 1));
+}
+
+function formatMinutesAsDuration(minutes: number | null) {
+  if (minutes === null || !Number.isFinite(minutes)) return "--";
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  if (h <= 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
+function buildDailyAverageIntervalData(records: HydrationRecord[], days = 7) {
+  const result: Array<{
+    date: string;
+    label: string;
+    avgMinutes: number | null;
+    drinksCount: number;
+  }> = [];
+
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const date = d.toLocaleDateString("en-CA");
+    const dayRecords = records.filter(
+      (r) => r.type === "drink" && r.date === date,
+    );
+
+    result.push({
+      date,
+      label: d.toLocaleDateString("en-US", { weekday: "short" }),
+      avgMinutes: getAverageConsumptionMinutesForRecords(dayRecords),
+      drinksCount: dayRecords.length,
+    });
+  }
+
+  return result;
+}
+
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
 function Num({
@@ -1014,6 +1075,93 @@ function DrinkLegend({
   );
 }
 
+function AvgIntervalTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  const value = payload[0]?.value as number | null;
+  const count = payload[0]?.payload?.drinksCount as number;
+
+  return (
+    <div className="rounded-lg border border-border bg-card shadow-lg px-3 py-2.5 text-xs min-w-[160px]">
+      <p className="font-semibold text-foreground mb-1.5">{label}</p>
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <span className="text-muted-foreground">Avg interval</span>
+        <Num className="text-foreground font-semibold">
+          {formatMinutesAsDuration(value)}
+        </Num>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-muted-foreground">Drink entries</span>
+        <Num className="text-foreground">{count ?? 0}</Num>
+      </div>
+    </div>
+  );
+}
+
+function AvgConsumptionIntervalChart({
+  data,
+  isDark,
+  height = 220,
+}: {
+  data: Array<{
+    date: string;
+    label: string;
+    avgMinutes: number | null;
+    drinksCount: number;
+  }>;
+  isDark: boolean;
+  height?: number;
+}) {
+  const tickColor = isDark ? "#5F5F5F" : "#7C7C7C";
+  const gridColor = isDark ? "#FFFFFF0D" : "#0000000D";
+  const lineColor = isDark ? "#38bdf8" : "#0284c7";
+
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <LineChart
+        data={data}
+        margin={{ top: 8, right: 16, bottom: 0, left: -16 }}
+      >
+        <CartesianGrid
+          strokeDasharray="3 3"
+          stroke={gridColor}
+          vertical={false}
+        />
+        <XAxis
+          dataKey="label"
+          tick={{
+            fill: tickColor,
+            fontSize: 11,
+            fontFamily: "Inter, sans-serif",
+          }}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis
+          tick={{
+            fill: tickColor,
+            fontSize: 11,
+            fontFamily: "Inter, sans-serif",
+          }}
+          axisLine={false}
+          tickLine={false}
+          width={52}
+          unit="m"
+        />
+        <Tooltip content={<AvgIntervalTooltip />} />
+        <Line
+          type="monotone"
+          dataKey="avgMinutes"
+          stroke={lineColor}
+          strokeWidth={2.25}
+          connectNulls={false}
+          dot={{ fill: lineColor, r: 3, strokeWidth: 0 }}
+          activeDot={{ r: 5, strokeWidth: 0 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
 // ─── Record Drink Modal ───────────────────────────────────────────────────────
 
 function RecordDrinkModal({
@@ -1321,10 +1469,12 @@ function SettingsPage({
   state,
   onSave,
   onTestReminder,
+  isSaving,
 }: {
   state: AppState;
-  onSave: (p: Partial<AppState>) => void;
+  onSave: (p: Partial<AppState>) => Promise<boolean>;
   onTestReminder: () => void;
+  isSaving: boolean;
 }) {
   const [goal, setGoal] = useState(state.dailyGoal);
   const [interval, setIntervalVal] = useState(state.reminderInterval);
@@ -1338,12 +1488,13 @@ function SettingsPage({
     "Notification" in window ? Notification.permission : "denied",
   );
 
-  function save() {
+  async function save() {
+    if (isSaving) return;
     const parsed = snoozes
       .split(",")
       .map((s) => parseInt(s.trim(), 10))
       .filter((n) => !isNaN(n) && n > 0);
-    onSave({
+    const ok = await onSave({
       dailyGoal: goal,
       reminderInterval: interval,
       snoozeDurations: parsed.length ? parsed : state.snoozeDurations,
@@ -1352,8 +1503,10 @@ function SettingsPage({
       soundVolume,
       soundEnabled,
     });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    if (ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
   }
 
   function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
@@ -1655,9 +1808,10 @@ function SettingsPage({
 
       <button
         onClick={save}
-        className="px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-all"
+        disabled={isSaving}
+        className="px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:opacity-90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        {saved ? "Saved ✓" : "Save Changes"}
+        {isSaving ? "Saving..." : saved ? "Saved ✓" : "Save Changes"}
       </button>
     </div>
   );
@@ -1834,6 +1988,10 @@ export default function App() {
   const [showReminder, setShowReminder] = useState(false);
   const [showRecord, setShowRecord] = useState(false);
   const [dlFlash, setDlFlash] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<
+    "backup" | "export" | "settings" | null
+  >(null);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [editingRecord, setEditingRecord] = useState<HydrationRecord | null>(
     null,
   );
@@ -1857,6 +2015,20 @@ export default function App() {
   useEffect(() => {
     appStateRef.current = appState;
   }, [appState]);
+
+  useEffect(() => {
+    if (!loadingAction) {
+      setLoadingProgress(0);
+      return;
+    }
+    setLoadingProgress(14);
+    const id = setInterval(() => {
+      setLoadingProgress((prev) =>
+        Math.min(prev + Math.max((95 - prev) * 0.12, 2), 95),
+      );
+    }, 180);
+    return () => clearInterval(id);
+  }, [loadingAction]);
 
   const fetchGoogleSheetState = useCallback(async () => {
     // Read state from Google Apps Script JSON endpoint first.
@@ -1924,6 +2096,58 @@ export default function App() {
 
     return null;
   }, []);
+
+  function finishLoading() {
+    setLoadingProgress(100);
+    setTimeout(() => {
+      setLoadingAction(null);
+      setLoadingProgress(0);
+    }, 250);
+  }
+
+  async function saveStateToGoogleSheet(
+    stateToSave: AppState,
+    themeToSave: ThemeMode,
+  ) {
+    const payload = {
+      action: "saveState",
+      sheetId: GOOGLE_SHEET_ID,
+      state: stateToSave,
+      theme: themeToSave,
+      exportedAt: new Date().toISOString(),
+    };
+
+    const formData = new URLSearchParams({
+      action: "saveState",
+      sheetId: GOOGLE_SHEET_ID,
+      payload: JSON.stringify(payload),
+    });
+
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      mode: "cors",
+      redirect: "follow",
+      credentials: "omit",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+      body: formData.toString(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Google Sheet save failed: ${response.status}`);
+    }
+
+    const parsed = await fetchGoogleSheetState();
+    if (parsed) {
+      setAppState(parsed.state);
+      setMode(parsed.theme);
+      return;
+    }
+
+    setAppState(stateToSave);
+    setMode(themeToSave);
+  }
 
   // Load application state from Google Sheet.
   useEffect(() => {
@@ -2235,6 +2459,7 @@ export default function App() {
   }
 
   async function handleDownload() {
+    setLoadingAction("export");
     setDlFlash(true);
     try {
       const response = await fetch(
@@ -2261,55 +2486,52 @@ export default function App() {
         type: "application/vnd.ms-excel",
       });
       downloadBlob(blob, "HYDRAA.xls");
+      toast.success("Export completed successfully.");
     } catch (error: any) {
       console.error("Export failed:", error);
-      alert("Failed to download workbook export from Google Sheet.");
+      toast.error("Failed to download workbook export from Google Sheet.");
     } finally {
+      finishLoading();
       setTimeout(() => setDlFlash(false), 2000);
     }
   }
 
   async function handleBackup() {
+    setLoadingAction("backup");
     try {
-      const payload = {
-        action: "saveState",
-        sheetId: GOOGLE_SHEET_ID,
-        state: appStateRef.current,
-        theme: mode,
-        exportedAt: new Date().toISOString(),
-      };
+      await saveStateToGoogleSheet(appStateRef.current, mode);
 
-      const formData = new URLSearchParams({
-        action: "saveState",
-        sheetId: GOOGLE_SHEET_ID,
-        payload: JSON.stringify(payload),
-      });
-
-      const response = await fetch(APPS_SCRIPT_URL, {
-        method: "POST",
-        mode: "cors",
-        redirect: "follow",
-        credentials: "omit",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-        },
-        body: formData.toString(),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Google Sheet save failed: ${response.status}`);
-      }
-
-      const parsed = await fetchGoogleSheetState();
-      if (parsed) {
-        setAppState(parsed.state);
-        setMode(parsed.theme);
-      }
-
-      alert("Backup saved to Google Sheet.");
+      toast.success("Backup saved to Google Sheet.");
     } catch (error: any) {
       console.error("Backup failed:", error);
-      alert("Failed to save backup to Google Sheet.");
+      toast.error("Failed to save backup to Google Sheet.");
+    } finally {
+      finishLoading();
+    }
+  }
+
+  async function handleSettingsSave(p: Partial<AppState>): Promise<boolean> {
+    setLoadingAction("settings");
+    try {
+      const current = appStateRef.current;
+      const today = todayStr();
+      const next: AppState = { ...current, ...p };
+
+      if (p.dailyGoal !== undefined && p.dailyGoal !== current.dailyGoal) {
+        const existing = next.dailyGoals.filter((g) => g.date !== today);
+        next.dailyGoals = [...existing, { date: today, goal: p.dailyGoal }];
+      }
+
+      setAppState(next);
+      await saveStateToGoogleSheet(next, mode);
+      toast.success("Settings saved to Google Sheet.");
+      return true;
+    } catch (error: any) {
+      console.error("Settings save failed:", error);
+      toast.error("Failed to save settings to Google Sheet.");
+      return false;
+    } finally {
+      finishLoading();
     }
   }
 
@@ -2353,7 +2575,13 @@ export default function App() {
   })).filter((x) => x.amount > 0);
 
   const dailyData = buildDailyData(appState.records, 7);
+  const avgIntervalDailyData = buildDailyAverageIntervalData(
+    appState.records,
+    7,
+  );
   const monthlyData = buildMonthlyData(appState.records, 6);
+  const todayAvgConsumptionMinutes =
+    getAverageConsumptionMinutesForRecords(todayDrinks);
 
   const allByType = DRINK_KEYS.map((dt) => ({
     dt,
@@ -2367,13 +2595,8 @@ export default function App() {
     return (
       <div className="flex h-screen items-center justify-center bg-background font-sans">
         <div className="flex flex-col items-center gap-3">
-          <span
-            className="text-4xl"
-            style={{ animation: "pulse 1.5s ease-in-out infinite" }}
-          >
-            💧
-          </span>
-          <p className="text-xs font-semibold tracking-[0.18em] text-muted-foreground">
+          <Martini className="w-10 h-10" />
+          <p className="text-2xl font-semibold tracking-[0.18em] text-foreground">
             HYDRAA
           </p>
         </div>
@@ -2382,7 +2605,20 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background font-sans">
+    <div
+      className={[
+        "flex h-screen overflow-hidden bg-background font-sans",
+        loadingAction ? "pointer-events-none select-none" : "",
+      ].join(" ")}
+    >
+      {loadingAction && (
+        <div className="fixed left-0 top-0 z-[100] h-1 w-full bg-primary/20">
+          <div
+            className="h-full bg-primary transition-[width] duration-150 ease-out"
+            style={{ width: `${loadingProgress}%` }}
+          />
+        </div>
+      )}
       {/* ── SIDEBAR ── */}
       <Sidebar
         activeTab={activeTab}
@@ -2445,18 +2681,26 @@ export default function App() {
             </button>
             <button
               onClick={handleBackup}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted transition-colors"
+              disabled={!!loadingAction}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <ClipboardList className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Backup</span>
+              <span className="hidden sm:inline">
+                {loadingAction === "backup" ? "Backing up..." : "Backup"}
+              </span>
             </button>
             <button
               onClick={handleDownload}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted transition-colors"
+              disabled={!!loadingAction}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">
-                {dlFlash ? "Exported ✓" : "Export"}
+                {loadingAction === "export"
+                  ? "Exporting..."
+                  : dlFlash
+                    ? "Exported ✓"
+                    : "Export"}
               </span>
             </button>
             <button
@@ -2560,12 +2804,12 @@ export default function App() {
                   sub={`${todayDrinks.length} entries`}
                 />
                 <StatCard
-                  label="Today's goal"
-                  value={`${todayGoal} ml`}
+                  label="Avg interval today"
+                  value={formatMinutesAsDuration(todayAvgConsumptionMinutes)}
                   sub={
-                    todayGoal !== appState.dailyGoal
-                      ? `Default: ${appState.dailyGoal} ml`
-                      : undefined
+                    todayAvgConsumptionMinutes === null
+                      ? "Need at least 2 drink entries"
+                      : `${todayDrinks.length} drink entries today`
                   }
                 />
                 <StatCard
@@ -2601,6 +2845,23 @@ export default function App() {
                 <p className="text-xs text-muted-foreground mt-2">
                   Dashed line = today's goal ({todayGoal} ml)
                 </p>
+              </div>
+
+              <div className="bg-card border border-border rounded-xl p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="font-semibold text-foreground text-sm">
+                      Average Consumption Interval — Last 7 Days
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Average minutes between consecutive drink entries per day
+                    </p>
+                  </div>
+                </div>
+                <AvgConsumptionIntervalChart
+                  data={avgIntervalDailyData}
+                  isDark={isDark}
+                />
               </div>
             </div>
           )}
@@ -2724,7 +2985,7 @@ export default function App() {
                                     const isDeleting = deletingId === r.id;
                                     return (
                                       <div key={r.id}>
-                                        <div className="flex items-center gap-3 px-4 py-3 group">
+                                        <div className="flex items-center gap-3 px-4 py-3 group hover:bg-muted/40 transition-colors">
                                           <DrinkDot
                                             type={r.drinkType}
                                             isDark={isDark}
@@ -2977,26 +3238,8 @@ export default function App() {
                 fireNativeNotification(todayWater, goal);
                 setShowReminder(true);
               }}
-              onSave={(p) =>
-                setAppState((s) => {
-                  const next = { ...s, ...p };
-                  // If the default goal changed, also record it as today's goal
-                  if (
-                    p.dailyGoal !== undefined &&
-                    p.dailyGoal !== s.dailyGoal
-                  ) {
-                    const existing = next.dailyGoals.filter(
-                      (g) => g.date !== today,
-                    );
-                    next.dailyGoals = [
-                      ...existing,
-                      { date: today, goal: p.dailyGoal },
-                    ];
-                  }
-                  // queueExport();
-                  return next;
-                })
-              }
+              onSave={handleSettingsSave}
+              isSaving={loadingAction === "settings"}
             />
           )}
         </main>
@@ -3031,6 +3274,7 @@ export default function App() {
           dailyGoal={todayGoal}
         />
       )}
+      <Toaster position="bottom-right" richColors />
     </div>
   );
 }

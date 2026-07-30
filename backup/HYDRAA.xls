@@ -6,6 +6,9 @@
 </Styles>
 <Worksheet ss:Name="HYDRAA Log"><Table>
 <Row><Cell><Data ss:Type="String">Date</Data></Cell><Cell><Data ss:Type="String">Time</Data></Cell><Cell><Data ss:Type="String">Drink Type</Data></Cell><Cell><Data ss:Type="String">Amount (ml)</Data></Cell><Cell><Data ss:Type="String">Type</Data></Cell><Cell><Data ss:Type="String">Source</Data></Cell><Cell><Data ss:Type="String">Snooze (min)</Data></Cell><Cell><Data ss:Type="String">Water Total (ml)</Data></Cell><Cell><Data ss:Type="String">Daily Goal (ml)</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">2026-07-30</Data></Cell><Cell><Data ss:Type="String">09:13:00</Data></Cell><Cell><Data ss:Type="String">Water</Data></Cell><Cell><Data ss:Type="Number">20</Data></Cell><Cell><Data ss:Type="String">Drink</Data></Cell><Cell><Data ss:Type="String">Manual</Data></Cell><Cell><Data ss:Type="String"></Data></Cell><Cell><Data ss:Type="Number">40</Data></Cell><Cell><Data ss:Type="String"></Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">2026-07-30</Data></Cell><Cell><Data ss:Type="String">08:00:00</Data></Cell><Cell><Data ss:Type="String">Water</Data></Cell><Cell><Data ss:Type="Number">20</Data></Cell><Cell><Data ss:Type="String">Drink</Data></Cell><Cell><Data ss:Type="String">Manual</Data></Cell><Cell><Data ss:Type="String"></Data></Cell><Cell><Data ss:Type="Number">20</Data></Cell><Cell><Data ss:Type="String"></Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">2026-07-29</Data></Cell><Cell><Data ss:Type="String">20:14:00</Data></Cell><Cell><Data ss:Type="String">Water</Data></Cell><Cell><Data ss:Type="Number">10</Data></Cell><Cell><Data ss:Type="String">Drink</Data></Cell><Cell><Data ss:Type="String">Manual</Data></Cell><Cell><Data ss:Type="String"></Data></Cell><Cell><Data ss:Type="Number">2120</Data></Cell><Cell><Data ss:Type="String"></Data></Cell></Row>
 <Row><Cell><Data ss:Type="String">2026-07-29</Data></Cell><Cell><Data ss:Type="String">19:47:00</Data></Cell><Cell><Data ss:Type="String">Water</Data></Cell><Cell><Data ss:Type="Number">10</Data></Cell><Cell><Data ss:Type="String">Drink</Data></Cell><Cell><Data ss:Type="String">Manual</Data></Cell><Cell><Data ss:Type="String"></Data></Cell><Cell><Data ss:Type="Number">2110</Data></Cell><Cell><Data ss:Type="String"></Data></Cell></Row>
 <Row><Cell><Data ss:Type="String">2026-07-29</Data></Cell><Cell><Data ss:Type="String">19:29:00</Data></Cell><Cell><Data ss:Type="String">Tea</Data></Cell><Cell><Data ss:Type="Number">30</Data></Cell><Cell><Data ss:Type="String">Drink</Data></Cell><Cell><Data ss:Type="String">Manual</Data></Cell><Cell><Data ss:Type="String"></Data></Cell><Cell><Data ss:Type="Number">2000</Data></Cell><Cell><Data ss:Type="String"></Data></Cell></Row>
 <Row><Cell><Data ss:Type="String">2026-07-29</Data></Cell><Cell><Data ss:Type="String">19:00:00</Data></Cell><Cell><Data ss:Type="String">Water</Data></Cell><Cell><Data ss:Type="Number">100</Data></Cell><Cell><Data ss:Type="String">Drink</Data></Cell><Cell><Data ss:Type="String">Manual</Data></Cell><Cell><Data ss:Type="String"></Data></Cell><Cell><Data ss:Type="Number">2100</Data></Cell><Cell><Data ss:Type="String"></Data></Cell></Row>
@@ -48,7 +51,7 @@
 <Row><Cell><Data ss:Type="String">Default Daily Goal (ml)</Data></Cell><Cell><Data ss:Type="Number">2200</Data></Cell></Row>
 </Table></Worksheet>
 <Worksheet ss:Name="HYDRAA Config"><Table>
-<Row><Cell><Data ss:Type="String">Daily Goal</Data></Cell><Cell><Data ss:Type="Number">2200</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Daily Goal</Data></Cell><Cell><Data ss:Type="Number">2500</Data></Cell></Row>
 <Row><Cell><Data ss:Type="String">Reminder Interval</Data></Cell><Cell><Data ss:Type="Number">15</Data></Cell></Row>
 <Row><Cell><Data ss:Type="String">Snooze Durations</Data></Cell><Cell><Data ss:Type="String">5,10,15,30</Data></Cell></Row>
 <Row><Cell><Data ss:Type="String">Reminder Enabled</Data></Cell><Cell><Data ss:Type="String">true</Data></Cell></Row>
@@ -56,11 +59,12 @@
 <Row><Cell><Data ss:Type="String">Sound Volume</Data></Cell><Cell><Data ss:Type="Number">1</Data></Cell></Row>
 <Row><Cell><Data ss:Type="String">Sound Enabled</Data></Cell><Cell><Data ss:Type="String">true</Data></Cell></Row>
 <Row><Cell><Data ss:Type="String">Theme</Data></Cell><Cell><Data ss:Type="String">light</Data></Cell></Row>
-<Row><Cell><Data ss:Type="String">Exported At</Data></Cell><Cell><Data ss:Type="String">2026-07-29 20:02:45</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">Exported At</Data></Cell><Cell><Data ss:Type="String">2026-07-30 09:13:28</Data></Cell></Row>
 </Table></Worksheet>
 <Worksheet ss:Name="Daily Goals"><Table>
 <Row><Cell><Data ss:Type="String">Date</Data></Cell><Cell><Data ss:Type="String">Goal (ml)</Data></Cell></Row>
 <Row><Cell><Data ss:Type="String">2026-07-28</Data></Cell><Cell><Data ss:Type="Number">2200</Data></Cell></Row>
 <Row><Cell><Data ss:Type="String">2026-07-29</Data></Cell><Cell><Data ss:Type="Number">2200</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">2026-07-30</Data></Cell><Cell><Data ss:Type="Number">2200</Data></Cell></Row>
 </Table></Worksheet>
 </Workbook>
