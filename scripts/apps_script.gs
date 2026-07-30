@@ -176,7 +176,7 @@ function saveStateJsonToSheets(state, theme) {
   else goals.clear();
 
   var goalRows = [["Date", "Goal (ml)"]];
-  var stateGoals = state.dailyGoals || [];
+  var stateGoals = (state.dailyGoals || []).slice().reverse();
   for (var j = 0; j < stateGoals.length; j++) {
     var goal = stateGoals[j] || {};
     goalRows.push([goal.date || "", Number(goal.goal) || 0]);
@@ -491,8 +491,59 @@ function buildWorkbookXmlFromSheets(sheetsData) {
     );
   }
 
-  function rowXml(row) {
-    return "<Row>" + row.map(cellXml).join("") + "</Row>";
+  function rowXml(row, rowIndex, sheetName) {
+    var isHeaderRow = rowIndex === 0 && sheetName !== "HYDRAA Config";
+    return (
+      "<Row>" +
+      row
+        .map(function (value) {
+          var type = "String";
+          var normalized = value;
+          if (value instanceof Date) {
+            type = "String";
+            var formattedDate = Utilities.formatDate(
+              value,
+              Session.getScriptTimeZone(),
+              "yyyy-MM-dd",
+            );
+            var formattedTime = Utilities.formatDate(
+              value,
+              Session.getScriptTimeZone(),
+              "HH:mm:ss",
+            );
+            if (formattedDate === "1899-12-30") {
+              normalized = formattedTime;
+            } else if (formattedTime === "00:00:00") {
+              normalized = formattedDate;
+            } else {
+              normalized = formattedDate + " " + formattedTime;
+            }
+          } else if (typeof value === "number") {
+            type = "Number";
+            normalized = value;
+          } else if (
+            typeof value === "string" &&
+            value.trim() !== "" &&
+            !isNaN(Number(value))
+          ) {
+            type = "Number";
+            normalized = Number(value);
+          }
+
+          var styleAttr = isHeaderRow ? ' ss:StyleID="h"' : "";
+          return (
+            '<Cell' +
+            styleAttr +
+            '><Data ss:Type="' +
+            type +
+            '">' +
+            esc(normalized) +
+            "</Data></Cell>"
+          );
+        })
+        .join("") +
+      "</Row>"
+    );
   }
 
   var sheetNames = Object.keys(sheetsData);
@@ -505,7 +556,7 @@ function buildWorkbookXmlFromSheets(sheetsData) {
   );
   workbook.push("<Styles>");
   workbook.push(
-    '<Style ss:ID="h"><Font ss:Bold="1" ss:Color="#FFF"/><Interior ss:Color="#0284C7" ss:Pattern="Solid"/></Style>',
+    '<Style ss:ID="h"><Font ss:Bold="1" ss:Color="#000000"/><Interior ss:Color="#95B9F3" ss:Pattern="Solid"/></Style>',
   );
   workbook.push(
     '<Style ss:ID="s"><Font ss:Bold="1"/><Interior ss:Color="#E8F4FD" ss:Pattern="Solid"/></Style>',
@@ -515,8 +566,8 @@ function buildWorkbookXmlFromSheets(sheetsData) {
   sheetNames.forEach(function (sheetName) {
     var rows = sheetsData[sheetName] || [];
     workbook.push('<Worksheet ss:Name="' + esc(sheetName) + '"><Table>');
-    rows.forEach(function (row) {
-      workbook.push(rowXml(row));
+    rows.forEach(function (row, index) {
+      workbook.push(rowXml(row, index, sheetName));
     });
     workbook.push("</Table></Worksheet>");
   });

@@ -53,7 +53,7 @@ import { Toaster, toast } from "sonner";
 // ─── Google Sheets Integration Setup ──────────────────────────────────────────
 const GOOGLE_SHEET_ID = "1AA1bEa8v-qe6LFiwcc6l6pFsaJH1cfOHCgrTtakNVyA";
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbxYPPams6SOWQrgKGP7SmInZ8Eu-QPBm42UXgtX-zOAhZhIaVXu7zY1hUAX3cbTX1eJ/exec";
+  "https://script.google.com/macros/s/AKfycbxyoednkxOvB5D6UOhQugeoVCFPeL3W321oqbCQCOZ7JWCXyewJgC9SCMSlhAfyaglq/exec";
 
 // Public CSV export endpoint from Google Sheets
 const GOOGLE_FETCH_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv`;
