@@ -1518,7 +1518,7 @@ function RecordDrinkModal({
                   setCustom(e.target.value);
                   setPreset(null);
                 }}
-                className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary transition-colors"
+                className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
                 style={{ fontFamily: "Inter, sans-serif" }}
               />
               <span className="text-sm text-muted-foreground shrink-0">ml</span>
@@ -1534,7 +1534,7 @@ function RecordDrinkModal({
               type="datetime-local"
               value={datetime}
               onChange={(e) => setDatetime(e.target.value)}
-              className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary transition-colors"
+              className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
               style={{ fontFamily: "Inter, sans-serif" }}
             />
             <p className="text-xs text-muted-foreground mt-1.5">
@@ -1801,7 +1801,7 @@ function SettingsPage({
                 type="number"
                 value={goal}
                 onChange={(e) => setGoal(Number(e.target.value))}
-                className="w-full sm:flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
+                className="w-full sm:flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
                 style={{ fontFamily: "Inter, sans-serif" }}
               />
               <span className="text-sm text-muted-foreground sm:shrink-0">
@@ -1849,7 +1849,7 @@ function SettingsPage({
               type="text"
               value={snoozes}
               onChange={(e) => setSnoozes(e.target.value)}
-              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
               style={{ fontFamily: "Inter, sans-serif" }}
             />
           </div>
@@ -1990,7 +1990,7 @@ function SettingsPage({
                           Number.isFinite(next) ? next : 0,
                         );
                       }}
-                      className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
+                      className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
                       style={{ fontFamily: "Inter, sans-serif" }}
                     />
                   </label>
@@ -2008,7 +2008,7 @@ function SettingsPage({
                           Number.isFinite(next) ? next : 0,
                         );
                       }}
-                      className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-black focus:outline-none focus:border-primary"
+                      className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
                       style={{ fontFamily: "Inter, sans-serif" }}
                     />
                   </label>
@@ -3259,7 +3259,7 @@ export default function App() {
                 <span className="text-xs text-foreground hidden sm:inline">
                   Next reminder
                 </span>
-                <Num className="text-sm font-semibold text-black tabular-nums">
+                <Num className="text-sm font-semibold text-foreground tabular-nums">
                   {countdown}
                 </Num>
                 {snoozeTimer.pausedRemaining !== null ? (
@@ -3295,7 +3295,7 @@ export default function App() {
                     <span className="text-xs text-muted-foreground hidden sm:inline">
                       Next reminder:
                     </span>
-                    <Num className="text-sm font-semibold text-black tabular-nums">
+                    <Num className="text-sm font-semibold text-foreground tabular-nums">
                       {nextReminderCountdown}
                     </Num>
                   </div>
@@ -3470,7 +3470,7 @@ export default function App() {
                         <p className="text-xs text-muted-foreground mb-0.5">
                           {l}
                         </p>
-                        <Num className="text-sm font-semibold text-black">
+                        <Num className="text-sm font-semibold text-foreground">
                           {v}
                         </Num>
                       </div>
