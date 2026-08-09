@@ -418,7 +418,7 @@ type DateRangePreset =
   | "htd"
   | "ytd"
   | "all";
-  // | "custom";
+// | "custom";
 
 const DATE_RANGE_PRESETS: { key: DateRangePreset; label: string }[] = [
   { key: "today", label: "Today" },
@@ -1239,6 +1239,7 @@ function DrinkAreaChart({
           tickLine={false}
           unit="ml"
           width={52}
+          domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15) || 100]}
         />
         <Tooltip
           content={<ChartTooltip isDark={isDark} drinks={drinks} />}
@@ -1250,6 +1251,7 @@ function DrinkAreaChart({
             stroke={isDark ? "#38bdf8" : "#0284c7"}
             strokeDasharray="4 3"
             strokeWidth={1.5}
+            ifOverflow="visible"
           />
         )}
         {drinkKeys.map((dt) => {
@@ -1264,6 +1266,96 @@ function DrinkAreaChart({
               stroke={color}
               strokeWidth={isActive ? 1.5 : 0}
               fill={`url(#grad-${dt})`}
+            />
+          );
+        })}
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ── Multi-line + independent fill area — Dashboard 7-day view
+function DrinkOverlayAreaChart({
+  data,
+  drinkKeys,
+  drinks,
+  isDark,
+  height = 210,
+  goalLine,
+}: {
+  data: Record<string, any>[];
+  drinkKeys: string[];
+  drinks: Record<string, DrinkConfig>;
+  isDark: boolean;
+  height?: number;
+  goalLine?: number;
+}) {
+  const tickColor = isDark ? "#5F5F5F" : "#7C7C7C";
+  const gridColor = isDark ? "#FFFFFF0D" : "#0000000D";
+  const hoverFill = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+  const activeDrinks = drinkKeys.filter((dt) => data.some((d) => d[dt] > 0));
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart
+        data={data}
+        margin={{ top: 8, right: 4, bottom: 0, left: -16 }}
+      >
+        <defs>
+          {activeDrinks.map((dt) => {
+            const color = isDark ? drinks[dt].colorDark : drinks[dt].colorLight;
+            return (
+              <linearGradient
+                key={`overlay-grad-${dt}`}
+                id={`overlay-grad-${dt}`}
+                x1="0" y1="0" x2="0" y2="1"
+              >
+                <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+                <stop offset="100%" stopColor={color} stopOpacity={0.03} />
+              </linearGradient>
+            );
+          })}
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+        <XAxis
+          dataKey="label"
+          tick={{ fill: tickColor, fontSize: 11, fontFamily: "Inter, sans-serif" }}
+          axisLine={false}
+          tickLine={false}
+        />
+        <YAxis
+          tick={{ fill: tickColor, fontSize: 11, fontFamily: "Inter, sans-serif" }}
+          axisLine={false}
+          tickLine={false}
+          unit="ml"
+          width={52}
+          domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15) || 100]}
+        />
+        <Tooltip
+          content={<ChartTooltip isDark={isDark} drinks={drinks} />}
+          cursor={{ fill: hoverFill }}
+        />
+        {goalLine && (
+          <ReferenceLine
+            y={goalLine}
+            stroke={isDark ? "#38bdf8" : "#0284c7"}
+            strokeDasharray="4 3"
+            strokeWidth={1.5}
+            ifOverflow="visible"
+          />
+        )}
+        {/* no stackId — each area fills independently from zero */}
+        {activeDrinks.map((dt) => {
+          const color = isDark ? drinks[dt].colorDark : drinks[dt].colorLight;
+          return (
+            <Area
+              key={`overlay-${dt}`}
+              type="monotone"
+              dataKey={dt}
+              stroke={color}
+              strokeWidth={2}
+              fill={`url(#overlay-grad-${dt})`}
+              dot={false}
+              activeDot={{ r: 4, strokeWidth: 0, fill: color }}
             />
           );
         })}
@@ -1325,6 +1417,7 @@ function DrinkGroupedBarChart({
           tickLine={false}
           unit="ml"
           width={52}
+          domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15) || 100]}
         />
         <Tooltip
           content={<ChartTooltip isDark={isDark} drinks={drinks} />}
@@ -1338,6 +1431,7 @@ function DrinkGroupedBarChart({
             stroke={isDark ? "#38bdf8" : "#0284c7"}
             strokeDasharray="4 3"
             strokeWidth={1.5}
+            ifOverflow="visible"
           />
         )}
         {activeDrinks.map((dt) => (
@@ -1423,8 +1517,7 @@ function DrinkLineChart({
   );
 }
 
-function 
-DrinkLegend({
+function DrinkLegend({
   data,
   drinkKeys,
   drinks,
@@ -3857,7 +3950,7 @@ export default function App() {
                       Last 7 Days — All Beverages
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Stacked daily intake by drink type
+                      Daily intake per drink type
                     </p>
                   </div>
                   <DrinkLegend
@@ -3867,7 +3960,7 @@ export default function App() {
                     isDark={isDark}
                   />
                 </div>
-                <DrinkAreaChart
+                <DrinkOverlayAreaChart
                   data={dailyData}
                   drinkKeys={allDrinkKeys}
                   drinks={allDrinks}
@@ -3878,7 +3971,6 @@ export default function App() {
                   Dashed line = today's goal ({todayGoal} ml)
                 </p>
               </div>
-
 
               <div className="bg-card border border-border rounded-xl p-5">
                 <div className="flex items-start justify-between mb-3">
