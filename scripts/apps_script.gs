@@ -125,19 +125,12 @@ function saveStateJsonToSheets(state, theme) {
   ];
   var rows = [header];
   var stateRecords = state.records || [];
-  var drinkMap = {
-    water: "Water",
-    milk: "Milk",
-    caffeine: "Caffeine",
-    soda: "Soda",
-    juice: "Juice",
-  };
   for (var i = 0; i < stateRecords.length; i++) {
     var record = stateRecords[i] || {};
     rows.push([
       record.date || "",
       record.time || "",
-      drinkMap[record.drinkType] || "Water",
+      record.drinkType || "water",
       Number(record.amount) || 0,
       record.type === "snooze"
         ? "Snoozed"
@@ -311,10 +304,10 @@ function getStateFromSheets(ss) {
   }
 
   var drinkMap = {
+    // legacy capitalised labels kept for sheets written before raw keys were stored
     Water: "water",
     Milk: "milk",
     Caffeine: "caffeine",
-    // legacy labels kept for backward compatibility with old sheet data
     Coffee: "caffeine",
     Tea: "caffeine",
     Soda: "soda",
@@ -344,7 +337,8 @@ function getStateFromSheets(ss) {
       var time = formatTime(row[1]);
       if (!date || !time) continue;
       var drinkLabel = getString(row[2]);
-      var drinkType = drinkMap[drinkLabel] || "water";
+      // raw key stored directly; fall back through legacy map for old sheets
+      var drinkType = drinkMap[drinkLabel] || drinkLabel || "water";
       var amount = parseNumber(row[3], 0);
       var typeText = getString(row[4]).toLowerCase();
       var recordType =

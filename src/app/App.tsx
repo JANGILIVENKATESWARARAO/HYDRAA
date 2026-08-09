@@ -47,15 +47,13 @@ import {
   Coffee,
   CupSoda,
   Citrus,
-  RefreshCw,
-  Calendar,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 // ─── Google Sheets Integration Setup ──────────────────────────────────────────
 const GOOGLE_SHEET_ID = "1AA1bEa8v-qe6LFiwcc6l6pFsaJH1cfOHCgrTtakNVyA";
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbwhUCq-1KBskocAHOX4oajCnw7bHzkYXAXRcRG5U2bc1x10eJ2OV-Pb3F3t2PUHtTU/exec";
+  "https://script.google.com/macros/s/AKfycby3WBqRuN_G8VIrwtbWcFIajNgtTpKRLBOgDApI7R73h8_zcOx7_vJ993Qm6cu7fz_w/exec";
 
 // Public CSV export endpoint from Google Sheets
 const GOOGLE_FETCH_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv`;
@@ -391,8 +389,8 @@ const DRINKS: Record<string, DrinkConfig> = {
   caffeine: {
     label: "Caffeine",
     iconName: "caffeine",
-    colorLight: "#92400e",
-    colorDark: "#fbbf24",
+    colorLight: "#15803d",
+    colorDark: "#4ade80",
   },
   soda: {
     label: "Soda",
@@ -2598,7 +2596,7 @@ export default function App() {
   const [showRecord, setShowRecord] = useState(false);
   const [dlFlash, setDlFlash] = useState(false);
   const [loadingAction, setLoadingAction] = useState<
-    "backup" | "export" | "settings" | "refresh" | null
+    "backup" | "export" | "settings" | null
   >(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [autoBackupLoading, setAutoBackupLoading] = useState(false);
@@ -3441,26 +3439,6 @@ export default function App() {
     setDateRangeEnd(value);
   }
 
-  async function handleRefresh() {
-    setLoadingAction("refresh");
-    try {
-      const parsed = await fetchGoogleSheetState();
-      if (parsed) {
-        setAppState(parsed.state);
-        setMode(parsed.theme);
-      }
-      setDateRangePreset("today");
-      setDateRangeStart(todayStr());
-      setDateRangeEnd(todayStr());
-      toast.success("Data refreshed.");
-    } catch (error) {
-      console.error("Refresh failed:", error);
-      toast.error("Failed to refresh data.");
-    } finally {
-      finishLoading();
-    }
-  }
-
   const today = todayStr();
   const todayGoal = getGoalForDate(appState, today);
   const todayRecs = appState.records.filter((r) => r.date === today);
@@ -3666,17 +3644,6 @@ export default function App() {
               </span>
             </button>
             <button
-              onClick={handleRefresh}
-              disabled={!!loadingAction}
-              title="Refresh data from Google Sheet"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">
-                {loadingAction === "refresh" ? "Refreshing..." : "Refresh"}
-              </span>
-            </button>
-            <button
               onClick={handleDownload}
               disabled={!!loadingAction}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
@@ -3733,17 +3700,6 @@ export default function App() {
                   >
                     <ClipboardList className="w-3.5 h-3.5" />
                     {loadingAction === "backup" ? "Backing up..." : "Backup"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleRefresh();
-                      setMobileActionsOpen(false);
-                    }}
-                    disabled={!!loadingAction}
-                    className="w-full px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted flex items-center gap-2 disabled:opacity-60"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    {loadingAction === "refresh" ? "Refreshing..." : "Refresh"}
                   </button>
                   <button
                     onClick={() => {
