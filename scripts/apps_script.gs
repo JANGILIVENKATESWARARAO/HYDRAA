@@ -127,8 +127,8 @@ function saveStateJsonToSheets(state, theme) {
   var stateRecords = state.records || [];
   var drinkMap = {
     water: "Water",
-    coffee: "Coffee",
-    tea: "Tea",
+    milk: "Milk",
+    caffeine: "Caffeine",
     soda: "Soda",
     juice: "Juice",
   };
@@ -188,8 +188,9 @@ function saveStateJsonToSheets(state, theme) {
 
 function doGet(e) {
   try {
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
     if (e && e.parameter && e.parameter.action === "getState") {
-      var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
       var result = getStateFromSheets(ss);
       return createCorsTextOutput(
         JSON.stringify({ ok: true, state: result.state, theme: result.theme }),
@@ -198,7 +199,6 @@ function doGet(e) {
     }
 
     if (e && e.parameter && e.parameter.action === "getAllCsv") {
-      var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
       var sheets = ss.getSheets();
       var sheetsData = {};
       sheets.forEach(function (sheet) {
@@ -206,19 +206,9 @@ function doGet(e) {
       });
       var xml = buildWorkbookXmlFromSheets(sheetsData);
       return createCorsTextOutput(xml, ContentService.MimeType.TEXT);
-    }
-
-    if (e && e.parameter && e.parameter.action === "getState") {
-      var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-      var result = getStateFromSheets(ss);
-      return createCorsTextOutput(
-        JSON.stringify({ ok: true, state: result.state, theme: result.theme }),
-        ContentService.MimeType.JSON,
-      );
     }
 
     if (e && e.parameter && e.parameter.action === "getXml") {
-      var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
       var sheets = ss.getSheets();
       var sheetsData = {};
       sheets.forEach(function (sheet) {
@@ -228,7 +218,6 @@ function doGet(e) {
       return createCorsTextOutput(xml, ContentService.MimeType.TEXT);
     }
 
-    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var cfg = ss.getSheetByName("HYDRAA Config");
     var exported = "";
     if (cfg) {
@@ -323,8 +312,11 @@ function getStateFromSheets(ss) {
 
   var drinkMap = {
     Water: "water",
-    Coffee: "coffee",
-    Tea: "tea",
+    Milk: "milk",
+    Caffeine: "caffeine",
+    // legacy labels kept for backward compatibility with old sheet data
+    Coffee: "caffeine",
+    Tea: "caffeine",
     Soda: "soda",
     Juice: "juice",
   };
@@ -395,7 +387,7 @@ function getStateFromSheets(ss) {
   var cfgSheet = ss.getSheetByName("HYDRAA Config");
   if (cfgSheet) {
     var cfgRows = cfgSheet.getDataRange().getValues();
-    for (var j = 1; j < cfgRows.length; j++) {
+    for (var j = 0; j < cfgRows.length; j++) {
       var key = getString(cfgRows[j][0]);
       var value = cfgRows[j][1];
       if (!key) continue;
@@ -532,7 +524,7 @@ function buildWorkbookXmlFromSheets(sheetsData) {
 
           var styleAttr = isHeaderRow ? ' ss:StyleID="h"' : "";
           return (
-            '<Cell' +
+            "<Cell" +
             styleAttr +
             '><Data ss:Type="' +
             type +

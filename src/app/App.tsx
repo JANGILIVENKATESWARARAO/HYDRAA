@@ -43,17 +43,19 @@ import {
   Martini,
   Menu,
   Droplet,
+  Milk,
   Coffee,
-  Leaf,
   CupSoda,
   Citrus,
+  RefreshCw,
+  Calendar,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 // ─── Google Sheets Integration Setup ──────────────────────────────────────────
 const GOOGLE_SHEET_ID = "1AA1bEa8v-qe6LFiwcc6l6pFsaJH1cfOHCgrTtakNVyA";
 const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbxyoednkxOvB5D6UOhQugeoVCFPeL3W321oqbCQCOZ7JWCXyewJgC9SCMSlhAfyaglq/exec";
+  "https://script.google.com/macros/s/AKfycbwhUCq-1KBskocAHOX4oajCnw7bHzkYXAXRcRG5U2bc1x10eJ2OV-Pb3F3t2PUHtTU/exec";
 
 // Public CSV export endpoint from Google Sheets
 const GOOGLE_FETCH_URL = `https://docs.google.com/spreadsheets/d/${GOOGLE_SHEET_ID}/gviz/tq?tqx=out:csv`;
@@ -358,8 +360,8 @@ type TabKey = "dashboard" | "history" | "trends" | "settings";
 
 const DRINK_ICON_COMPONENTS = {
   droplet: Droplet,
-  coffee: Coffee,
-  leaf: Leaf,
+  milk: Milk,
+  caffeine: Coffee,
   "cup-soda": CupSoda,
   citrus: Citrus,
 } as const;
@@ -380,17 +382,17 @@ const DRINKS: Record<string, DrinkConfig> = {
     colorLight: "#0284c7",
     colorDark: "#38bdf8",
   },
-  coffee: {
-    label: "Coffee",
-    iconName: "coffee",
+  milk: {
+    label: "Milk",
+    iconName: "milk",
+    colorLight: "#6b7280",
+    colorDark: "#e5e7eb",
+  },
+  caffeine: {
+    label: "Caffeine",
+    iconName: "caffeine",
     colorLight: "#92400e",
     colorDark: "#fbbf24",
-  },
-  tea: {
-    label: "Tea",
-    iconName: "leaf",
-    colorLight: "#15803d",
-    colorDark: "#4ade80",
   },
   soda: {
     label: "Soda",
@@ -406,6 +408,87 @@ const DRINKS: Record<string, DrinkConfig> = {
   },
 };
 const ML_PRESETS = [50, 100, 150, 200, 300];
+
+// ─── Date Range Filter ────────────────────────────────────────────────────────
+
+type DateRangePreset =
+  | "today"
+  | "yesterday"
+  | "wtd"
+  | "mtd"
+  | "qtd"
+  | "htd"
+  | "ytd"
+  | "all";
+  // | "custom";
+
+const DATE_RANGE_PRESETS: { key: DateRangePreset; label: string }[] = [
+  { key: "today", label: "Today" },
+  { key: "yesterday", label: "Yesterday" },
+  { key: "wtd", label: "WTD" },
+  { key: "mtd", label: "MTD" },
+  { key: "qtd", label: "QTD" },
+  { key: "htd", label: "HTD" },
+  { key: "ytd", label: "YTD" },
+  { key: "all", label: "All time" },
+  // { key: "custom", label: "Custom" },
+];
+
+function computePresetRange(
+  preset: DateRangePreset,
+  records: HydrationRecord[],
+): { start: string; end: string } {
+  const now = new Date();
+  const tod = now.toLocaleDateString("en-CA");
+
+  if (preset === "today") return { start: tod, end: tod };
+
+  if (preset === "yesterday") {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 1);
+    const s = d.toLocaleDateString("en-CA");
+    return { start: s, end: s };
+  }
+
+  if (preset === "wtd") {
+    const d = new Date(now);
+    const day = d.getDay();
+    d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)); // back to Monday
+    return { start: d.toLocaleDateString("en-CA"), end: tod };
+  }
+
+  if (preset === "mtd") {
+    const d = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { start: d.toLocaleDateString("en-CA"), end: tod };
+  }
+
+  if (preset === "qtd") {
+    const q = Math.floor(now.getMonth() / 3);
+    const d = new Date(now.getFullYear(), q * 3, 1);
+    return { start: d.toLocaleDateString("en-CA"), end: tod };
+  }
+
+  if (preset === "htd") {
+    const h = now.getMonth() < 6 ? 0 : 6;
+    const d = new Date(now.getFullYear(), h, 1);
+    return { start: d.toLocaleDateString("en-CA"), end: tod };
+  }
+
+  if (preset === "ytd") {
+    const d = new Date(now.getFullYear(), 0, 1);
+    return { start: d.toLocaleDateString("en-CA"), end: tod };
+  }
+
+  if (preset === "all") {
+    const drinks = records.filter((r) => r.type === "drink");
+    if (!drinks.length) return { start: tod, end: tod };
+    const minTs = Math.min(...drinks.map((r) => r.timestamp));
+    return { start: new Date(minTs).toLocaleDateString("en-CA"), end: tod };
+  }
+
+  // custom — caller manages dates
+  return { start: tod, end: tod };
+}
 
 const NAV_ITEMS: { key: TabKey; label: string; icon: any }[] = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -486,8 +569,8 @@ function iconNameFromLegacyEmoji(value: unknown): DrinkIconName | null {
   if (typeof value !== "string") return null;
   const emoji = value.trim();
   if (emoji === "💧") return "droplet";
-  if (emoji === "☕") return "coffee";
-  if (emoji === "🍵") return "leaf";
+  if (emoji === "☕") return "caffeine";
+  if (emoji === "🍵") return "caffeine";
   if (emoji === "🥤") return "cup-soda";
   if (emoji === "🧃") return "citrus";
   return null;
@@ -823,6 +906,125 @@ function buildDailyAverageIntervalData(records: HydrationRecord[], days = 7) {
       avgMinutes: getAverageConsumptionMinutesForRecords(dayRecords),
       drinksCount: dayRecords.length,
     });
+  }
+
+  return result;
+}
+
+function buildRangedDailyData(
+  records: HydrationRecord[],
+  drinkKeys: string[],
+  start: string,
+  end: string,
+) {
+  const result: Record<string, any>[] = [];
+  const cur = new Date(start + "T12:00:00");
+  const last = new Date(end + "T12:00:00");
+  const spanDays = Math.round(
+    (last.getTime() - cur.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  // label format: weekday for ≤14 days, "MMM d" for larger spans
+  const useLongLabel = spanDays > 14;
+
+  while (cur <= last) {
+    const date = cur.toLocaleDateString("en-CA");
+    const label = useLongLabel
+      ? cur.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      : cur.toLocaleDateString("en-US", { weekday: "short" });
+    const entry: Record<string, any> = { date, label };
+    drinkKeys.forEach((dt) => (entry[dt] = 0));
+    result.push(entry);
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  const byDate = Object.fromEntries(result.map((r) => [r.date, r]));
+  records
+    .filter((r) => r.type === "drink" && byDate[r.date])
+    .forEach((r) => {
+      if (typeof byDate[r.date][r.drinkType] !== "number") return;
+      byDate[r.date][r.drinkType] += r.amount;
+    });
+
+  return result;
+}
+
+function buildRangedMonthlyData(
+  records: HydrationRecord[],
+  drinkKeys: string[],
+  start: string,
+  end: string,
+) {
+  const result: Record<string, any>[] = [];
+  const s = new Date(start + "T12:00:00");
+  const e = new Date(end + "T12:00:00");
+  let year = s.getFullYear();
+  let month = s.getMonth();
+
+  while (
+    year < e.getFullYear() ||
+    (year === e.getFullYear() && month <= e.getMonth())
+  ) {
+    const key = `${year}-${String(month + 1).padStart(2, "0")}`;
+    const label = new Date(year, month, 1).toLocaleDateString("en-US", {
+      month: "short",
+      year: "2-digit",
+    });
+    const entry: Record<string, any> = { key, label };
+    drinkKeys.forEach((dt) => (entry[dt] = 0));
+    result.push(entry);
+    month++;
+    if (month > 11) {
+      month = 0;
+      year++;
+    }
+  }
+
+  const byMonth = Object.fromEntries(result.map((r) => [r.key, r]));
+  records
+    .filter((r) => r.type === "drink")
+    .forEach((r) => {
+      const k = r.date.slice(0, 7);
+      if (!byMonth[k] || typeof byMonth[k][r.drinkType] !== "number") return;
+      byMonth[k][r.drinkType] += r.amount;
+    });
+
+  return result;
+}
+
+function buildRangedAverageIntervalData(
+  records: HydrationRecord[],
+  start: string,
+  end: string,
+) {
+  const result: Array<{
+    date: string;
+    label: string;
+    avgMinutes: number | null;
+    drinksCount: number;
+  }> = [];
+
+  const cur = new Date(start + "T12:00:00");
+  const last = new Date(end + "T12:00:00");
+  const spanDays = Math.round(
+    (last.getTime() - cur.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  const useLongLabel = spanDays > 14;
+
+  while (cur <= last) {
+    const date = cur.toLocaleDateString("en-CA");
+    const label = useLongLabel
+      ? cur.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      : cur.toLocaleDateString("en-US", { weekday: "short" });
+    const dayRecords = records.filter(
+      (r) => r.type === "drink" && r.date === date,
+    );
+    result.push({
+      date,
+      label,
+      avgMinutes: getAverageConsumptionMinutesForRecords(dayRecords),
+      drinksCount: dayRecords.length,
+    });
+    cur.setDate(cur.getDate() + 1);
   }
 
   return result;
@@ -1223,7 +1425,8 @@ function DrinkLineChart({
   );
 }
 
-function DrinkLegend({
+function 
+DrinkLegend({
   data,
   drinkKeys,
   drinks,
@@ -1340,6 +1543,62 @@ function AvgConsumptionIntervalChart({
         />
       </LineChart>
     </ResponsiveContainer>
+  );
+}
+
+// ─── Date Range Filter ────────────────────────────────────────────────────────
+
+function DateRangeFilter({
+  preset,
+  start,
+  end,
+  onPresetChange,
+  onStartChange,
+  onEndChange,
+}: {
+  preset: DateRangePreset;
+  start: string;
+  end: string;
+  onPresetChange: (p: DateRangePreset) => void;
+  onStartChange: (v: string) => void;
+  onEndChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-1 flex-wrap">
+        {DATE_RANGE_PRESETS.map((p) => (
+          <button
+            key={p.key}
+            onClick={() => onPresetChange(p.key)}
+            className={[
+              "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+              preset === p.key
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80",
+            ].join(" ")}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5 text-xs">
+        <input
+          type="date"
+          value={start}
+          max={end}
+          onChange={(e) => onStartChange(e.target.value)}
+          className="bg-muted border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary transition-colors"
+        />
+        <span className="text-muted-foreground">–</span>
+        <input
+          type="date"
+          value={end}
+          min={start}
+          onChange={(e) => onEndChange(e.target.value)}
+          className="bg-muted border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary transition-colors"
+        />
+      </div>
+    </div>
   );
 }
 
@@ -2339,7 +2598,7 @@ export default function App() {
   const [showRecord, setShowRecord] = useState(false);
   const [dlFlash, setDlFlash] = useState(false);
   const [loadingAction, setLoadingAction] = useState<
-    "backup" | "export" | "settings" | null
+    "backup" | "export" | "settings" | "refresh" | null
   >(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [autoBackupLoading, setAutoBackupLoading] = useState(false);
@@ -2359,6 +2618,10 @@ export default function App() {
   );
   const [nextReminderCountdown, setNextReminderCountdown] = useState("");
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const [dateRangePreset, setDateRangePreset] =
+    useState<DateRangePreset>("today");
+  const [dateRangeStart, setDateRangeStart] = useState(todayStr());
+  const [dateRangeEnd, setDateRangeEnd] = useState(todayStr());
   const reminderRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const snoozeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -3154,7 +3417,49 @@ export default function App() {
     });
   }
 
-  // ── derived ───────────────────────────────────────────────────────────────
+  // ── date range filter handlers ─────────────────────────────────────────────
+
+  function handlePresetChange(preset: DateRangePreset) {
+    setDateRangePreset(preset);
+    if (preset !== "custom") {
+      const { start, end } = computePresetRange(
+        preset,
+        appStateRef.current.records,
+      );
+      setDateRangeStart(start);
+      setDateRangeEnd(end);
+    }
+  }
+
+  function handleRangeStartChange(value: string) {
+    setDateRangePreset("custom");
+    setDateRangeStart(value);
+  }
+
+  function handleRangeEndChange(value: string) {
+    setDateRangePreset("custom");
+    setDateRangeEnd(value);
+  }
+
+  async function handleRefresh() {
+    setLoadingAction("refresh");
+    try {
+      const parsed = await fetchGoogleSheetState();
+      if (parsed) {
+        setAppState(parsed.state);
+        setMode(parsed.theme);
+      }
+      setDateRangePreset("today");
+      setDateRangeStart(todayStr());
+      setDateRangeEnd(todayStr());
+      toast.success("Data refreshed.");
+    } catch (error) {
+      console.error("Refresh failed:", error);
+      toast.error("Failed to refresh data.");
+    } finally {
+      finishLoading();
+    }
+  }
 
   const today = todayStr();
   const todayGoal = getGoalForDate(appState, today);
@@ -3194,6 +3499,44 @@ export default function App() {
   const monthlyData = buildMonthlyData(appState.records, allDrinkKeys, 6);
   const todayAvgConsumptionMinutes =
     getAverageConsumptionMinutesForRecords(todayDrinks);
+
+  // Ranged chart data driven by the date range filter
+  const rangedDaysDiff = Math.round(
+    (new Date(dateRangeEnd + "T12:00:00").getTime() -
+      new Date(dateRangeStart + "T12:00:00").getTime()) /
+      (1000 * 60 * 60 * 24),
+  );
+  const trendsUseDaily = rangedDaysDiff <= 90;
+  const trendsChartData = trendsUseDaily
+    ? buildRangedDailyData(
+        appState.records,
+        allDrinkKeys,
+        dateRangeStart,
+        dateRangeEnd,
+      )
+    : buildRangedMonthlyData(
+        appState.records,
+        allDrinkKeys,
+        dateRangeStart,
+        dateRangeEnd,
+      );
+  const trendsAvgIntervalData = trendsUseDaily
+    ? buildRangedAverageIntervalData(
+        appState.records,
+        dateRangeStart,
+        dateRangeEnd,
+      )
+    : [];
+  const rangedRecords = appState.records.filter(
+    (r) => r.date >= dateRangeStart && r.date <= dateRangeEnd,
+  );
+  const rangedByType = allDrinkKeys.map((dt) => ({
+    dt,
+    amount: rangedRecords
+      .filter((r) => r.type === "drink" && r.drinkType === dt)
+      .reduce((s, r) => s + r.amount, 0),
+  }));
+  const rangedTotal = rangedByType.reduce((s, x) => s + x.amount, 0);
 
   const allByType = allDrinkKeys.map((dt) => ({
     dt,
@@ -3323,6 +3666,17 @@ export default function App() {
               </span>
             </button>
             <button
+              onClick={handleRefresh}
+              disabled={!!loadingAction}
+              title="Refresh data from Google Sheet"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">
+                {loadingAction === "refresh" ? "Refreshing..." : "Refresh"}
+              </span>
+            </button>
+            <button
               onClick={handleDownload}
               disabled={!!loadingAction}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-muted transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
@@ -3379,6 +3733,17 @@ export default function App() {
                   >
                     <ClipboardList className="w-3.5 h-3.5" />
                     {loadingAction === "backup" ? "Backing up..." : "Backup"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleRefresh();
+                      setMobileActionsOpen(false);
+                    }}
+                    disabled={!!loadingAction}
+                    className="w-full px-3 py-2.5 text-left text-sm text-foreground hover:bg-muted flex items-center gap-2 disabled:opacity-60"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    {loadingAction === "refresh" ? "Refreshing..." : "Refresh"}
                   </button>
                   <button
                     onClick={() => {
@@ -3558,6 +3923,7 @@ export default function App() {
                 </p>
               </div>
 
+
               <div className="bg-card border border-border rounded-xl p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -3580,50 +3946,58 @@ export default function App() {
           {/* ─── HISTORY ─── */}
           {activeTab === "history" && (
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <h2 className="font-semibold text-foreground text-md">
-                    Drink History
-                  </h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {appState.records.length} total records
-                  </p>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h2 className="font-semibold text-foreground text-md">
+                      Drink History
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {rangedRecords.length} records in selected range
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    {allDrinkKeys.map((dt) => {
+                      const cnt = rangedRecords.filter(
+                        (r) => r.type === "drink" && r.drinkType === dt,
+                      ).length;
+                      if (!cnt) return null;
+                      return (
+                        <span
+                          key={dt}
+                          className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                        >
+                          <DrinkDot
+                            type={dt}
+                            isDark={isDark}
+                            drinks={allDrinks}
+                          />{" "}
+                          {(allDrinks[dt]?.label ?? dt) + " ×" + cnt}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  {allDrinkKeys.map((dt) => {
-                    const cnt = appState.records.filter(
-                      (r) => r.type === "drink" && r.drinkType === dt,
-                    ).length;
-                    if (!cnt) return null;
-                    return (
-                      <span
-                        key={dt}
-                        className="flex items-center gap-1.5 text-xs text-muted-foreground"
-                      >
-                        <DrinkDot
-                          type={dt}
-                          isDark={isDark}
-                          drinks={allDrinks}
-                        />{" "}
-                        {(allDrinks[dt]?.label ?? dt) + " ×" + cnt}
-                      </span>
-                    );
-                  })}
-                </div>
+                <DateRangeFilter
+                  preset={dateRangePreset}
+                  start={dateRangeStart}
+                  end={dateRangeEnd}
+                  onPresetChange={handlePresetChange}
+                  onStartChange={handleRangeStartChange}
+                  onEndChange={handleRangeEndChange}
+                />
               </div>
 
-              {appState.records.length === 0 ? (
+              {rangedRecords.length === 0 ? (
                 <div className="bg-card border border-border rounded-xl p-12 text-center">
                   <p className="text-muted-foreground text-sm">
-                    No records yet. Click{" "}
-                    <strong className="text-foreground">Record Drink</strong> to
-                    get started.
+                    No records for this date range.
                   </p>
                 </div>
               ) : (
                 (() => {
                   const grouped: Record<string, HydrationRecord[]> = {};
-                  appState.records.forEach((r) => {
+                  rangedRecords.forEach((r) => {
                     if (!grouped[r.date]) grouped[r.date] = [];
                     grouped[r.date].push(r);
                   });
@@ -3817,108 +4191,123 @@ export default function App() {
           {/* ─── TRENDS ─── */}
           {activeTab === "trends" && (
             <div className="space-y-5">
-              <div>
-                <h2 className="font-semibold text-foreground text-md">
-                  Trends
-                </h2>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  All beverages tracked over time
-                </p>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <h2 className="font-semibold text-foreground text-md">
+                    Trends
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    All beverages tracked over time
+                  </p>
+                </div>
+                <DateRangeFilter
+                  preset={dateRangePreset}
+                  start={dateRangeStart}
+                  end={dateRangeEnd}
+                  onPresetChange={handlePresetChange}
+                  onStartChange={handleRangeStartChange}
+                  onEndChange={handleRangeEndChange}
+                />
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard
-                  label="All-time water"
-                  value={`${((allByType.find((x) => x.dt === "water")?.amount ?? 0) / 1000).toFixed(2)} L`}
+                  label="Water"
+                  value={`${((rangedByType.find((x) => x.dt === "water")?.amount ?? 0) / 1000).toFixed(2)} L`}
                 />
                 <StatCard
                   label="Total beverages"
-                  value={`${(allTotal / 1000).toFixed(2)} L`}
-                  sub={`${appState.records.filter((r) => r.type === "drink").length} entries`}
+                  value={`${(rangedTotal / 1000).toFixed(2)} L`}
+                  sub={`${rangedRecords.filter((r) => r.type === "drink").length} entries`}
                 />
                 <StatCard
                   label="Reminders"
                   value={String(
-                    appState.records.filter((r) => r.source === "reminder")
-                      .length,
+                    rangedRecords.filter((r) => r.source === "reminder").length,
                   )}
-                  sub={`${appState.records.filter((r) => r.type === "snooze").length} snoozed · ${appState.records.filter((r) => r.type === "skip").length} skipped`}
+                  sub={`${rangedRecords.filter((r) => r.type === "snooze").length} snoozed · ${rangedRecords.filter((r) => r.type === "skip").length} skipped`}
                 />
                 <StatCard
                   label="Manual entries"
                   value={String(
-                    appState.records.filter(
+                    rangedRecords.filter(
                       (r) => r.type === "drink" && r.source === "manual",
                     ).length,
                   )}
                 />
               </div>
 
-              {/* 7-day */}
+              {/* primary chart — daily or monthly depending on range */}
               <div className="bg-card border border-border rounded-xl p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <p className="font-semibold text-foreground text-sm">
-                      Last 7 Days — All Beverages
+                      All Beverages
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Dashed line = water goal
+                      {trendsUseDaily ? "Daily" : "Monthly"} totals · dashed
+                      line = water goal
                     </p>
                   </div>
                   <DrinkLegend
-                    data={dailyData}
+                    data={trendsChartData}
                     drinkKeys={allDrinkKeys}
                     drinks={allDrinks}
                     isDark={isDark}
                   />
                 </div>
-                <DrinkGroupedBarChart
-                  data={dailyData}
-                  drinkKeys={allDrinkKeys}
-                  drinks={allDrinks}
-                  isDark={isDark}
-                  height={220}
-                  goalLine={todayGoal}
-                />
+                {trendsUseDaily ? (
+                  <DrinkGroupedBarChart
+                    data={trendsChartData}
+                    drinkKeys={allDrinkKeys}
+                    drinks={allDrinks}
+                    isDark={isDark}
+                    height={220}
+                    goalLine={todayGoal}
+                  />
+                ) : (
+                  <DrinkLineChart
+                    data={trendsChartData}
+                    drinkKeys={allDrinkKeys}
+                    drinks={allDrinks}
+                    isDark={isDark}
+                    height={220}
+                  />
+                )}
               </div>
 
-              {/* 6-month */}
-              <div className="bg-card border border-border rounded-xl p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="font-semibold text-foreground text-sm">
-                      Last 6 Months — All Beverages
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Monthly totals per drink type
-                    </p>
+              {/* avg interval chart — only meaningful for daily granularity */}
+              {trendsUseDaily && trendsAvgIntervalData.length > 0 && (
+                <div className="bg-card border border-border rounded-xl p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="font-semibold text-foreground text-sm">
+                        Average Consumption Interval
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Average minutes between consecutive drink entries per
+                        day
+                      </p>
+                    </div>
                   </div>
-                  <DrinkLegend
-                    data={monthlyData}
-                    drinkKeys={allDrinkKeys}
-                    drinks={allDrinks}
+                  <AvgConsumptionIntervalChart
+                    data={trendsAvgIntervalData}
                     isDark={isDark}
                   />
                 </div>
-                <DrinkLineChart
-                  data={monthlyData}
-                  drinkKeys={allDrinkKeys}
-                  drinks={allDrinks}
-                  isDark={isDark}
-                  height={220}
-                />
-              </div>
+              )}
 
               {/* breakdown table */}
               <div className="bg-card border border-border rounded-xl overflow-hidden">
                 <div className="px-5 py-4 border-b border-border">
                   <p className="font-semibold text-foreground text-sm">
-                    All-Time Beverage Breakdown
+                    Beverage Breakdown
                   </p>
                 </div>
                 <div className="divide-y divide-border">
-                  {allByType.map(({ dt, amount }) => {
-                    const share = allTotal > 0 ? (amount / allTotal) * 100 : 0;
+                  {rangedByType.map(({ dt, amount }) => {
+                    const share =
+                      rangedTotal > 0 ? (amount / rangedTotal) * 100 : 0;
                     return (
                       <div
                         key={dt}
